@@ -1,6 +1,7 @@
 const Incident = require("../models/incident.model");
 const User = require("../models/user.model");
 const formatDateIST = require("../utils/formatDate");
+const { createAuditLog } = require("../services/audit.service");
 
 const generateIncidentId = () => {
   return `INC-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`;
@@ -22,6 +23,7 @@ const formatIncident = (incident) => {
 };
 
 // Resident creates SOS
+
 const createSOS = async (req, res) => {
   try {
     const { currentZone } = req.body;
@@ -50,6 +52,18 @@ const createSOS = async (req, res) => {
       status: "PENDING",
     });
 
+    // Audit: SOS created
+    await createAuditLog({
+      action: "SOS_CREATED",
+      actorType: "USER",
+      actorUserId: req.user._id,
+      actorRole: req.user.role,
+      entityType: "INCIDENT",
+      entityId: incident._id,
+      previousState: null,
+      newState: "PENDING",
+    });
+
     res.status(201).json({
       success: true,
       message: "SOS received successfully",
@@ -66,6 +80,7 @@ const createSOS = async (req, res) => {
 };
 
 // Resident sees own incidents
+
 const getMyIncidents = async (req, res) => {
   try {
     const incidents = await Incident.find({
@@ -79,6 +94,8 @@ const getMyIncidents = async (req, res) => {
       incidents: incidents.map(formatIncident),
     });
   } catch (error) {
+    console.error("Get my incidents error:", error);
+
     res.status(500).json({
       success: false,
       message: "Failed to fetch incidents",
@@ -86,7 +103,8 @@ const getMyIncidents = async (req, res) => {
   }
 };
 
-// Warden/security view incidents
+// Warden / Security view incidents
+
 const getIncidents = async (req, res) => {
   try {
     const filter = {};
@@ -121,6 +139,7 @@ const getIncidents = async (req, res) => {
 };
 
 // Get one incident
+
 const getIncidentById = async (req, res) => {
   try {
     const incident = await Incident.findOne({
@@ -141,6 +160,7 @@ const getIncidentById = async (req, res) => {
       });
     }
 
+    // Resident can only see their own incident
     if (
       req.user.role === "resident" &&
       incident.residentId._id.toString() !== req.user._id.toString()
@@ -156,6 +176,8 @@ const getIncidentById = async (req, res) => {
       incident: formatIncident(incident),
     });
   } catch (error) {
+    console.error("Get incident error:", error);
+
     res.status(500).json({
       success: false,
       message: "Failed to fetch incident",
@@ -163,7 +185,8 @@ const getIncidentById = async (req, res) => {
   }
 };
 
-// Warden acknowledges
+// Warden acknowledges incident
+
 const acknowledgeIncident = async (req, res) => {
   try {
     const incident = await Incident.findOne({
@@ -184,14 +207,25 @@ const acknowledgeIncident = async (req, res) => {
       });
     }
 
+    const previousState = incident.status;
+
     incident.status = "ACKNOWLEDGED";
-
-    // Store Date object, NOT formatted string
     incident.acknowledgedAt = new Date();
-
     incident.acknowledgedBy = req.user._id;
 
     await incident.save();
+
+    // Audit: incident acknowledged
+    await createAuditLog({
+      action: "INCIDENT_ACKNOWLEDGED",
+      actorType: "USER",
+      actorUserId: req.user._id,
+      actorRole: req.user.role,
+      entityType: "INCIDENT",
+      entityId: incident._id,
+      previousState,
+      newState: "ACKNOWLEDGED",
+    });
 
     res.json({
       success: true,
@@ -208,7 +242,7 @@ const acknowledgeIncident = async (req, res) => {
   }
 };
 
-// Warden escalates
+// Warden escalates incident
 const escalateIncident = async (req, res) => {
   try {
     const { reason, securityUserId } = req.body;
@@ -248,17 +282,28 @@ const escalateIncident = async (req, res) => {
       }
     }
 
+    const previousState = incident.status;
+
     incident.status = "ESCALATED";
-
-    // Store Date object
     incident.escalatedAt = new Date();
-
     incident.escalatedTo = securityUser?._id || null;
-
     incident.escalationReason =
       reason || "Incident requires escalation";
 
     await incident.save();
+
+    // Audit: incident escalated
+    await createAuditLog({
+      action: "INCIDENT_ESCALATED",
+      actorType: "USER",
+      actorUserId: req.user._id,
+      actorRole: req.user.role,
+      entityType: "INCIDENT",
+      entityId: incident._id,
+      previousState,
+      newState: "ESCALATED",
+      reason: incident.escalationReason,
+    });
 
     res.json({
       success: true,
@@ -275,7 +320,7 @@ const escalateIncident = async (req, res) => {
   }
 };
 
-// Warden/security resolves
+// Warden / Security resolves incident
 const resolveIncident = async (req, res) => {
   try {
     const { resolutionNote } = req.body;
@@ -298,15 +343,27 @@ const resolveIncident = async (req, res) => {
       });
     }
 
+    const previousState = incident.status;
+
     incident.status = "RESOLVED";
-
-    // Store Date object
     incident.resolvedAt = new Date();
-
     incident.resolvedBy = req.user._id;
     incident.resolutionNote = resolutionNote || null;
 
     await incident.save();
+
+    // Audit: incident resolved
+    await createAuditLog({
+      action: "INCIDENT_RESOLVED",
+      actorType: "USER",
+      actorUserId: req.user._id,
+      actorRole: req.user.role,
+      entityType: "INCIDENT",
+      entityId: incident._id,
+      previousState,
+      newState: "RESOLVED",
+      reason: resolutionNote || null,
+    });
 
     res.json({
       success: true,

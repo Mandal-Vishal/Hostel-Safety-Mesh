@@ -5,6 +5,7 @@ const authRoutes = require("./routes/auth.route");
 const userRoutes = require("./routes/user.route")
 const checkinRoutes = require('./routes/checkIn.route')
 const incidentRoutes = require('./routes/incident.route')
+const auditRoutes = require('./routes/audit.route')
 
 const app = express();
 
