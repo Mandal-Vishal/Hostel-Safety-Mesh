@@ -6,7 +6,7 @@ const userRoutes = require("./routes/user.route")
 const checkinRoutes = require('./routes/checkIn.route')
 const incidentRoutes = require('./routes/incident.route')
 const auditRoutes = require('./routes/audit.route')
-
+const nodeRoutes = require('./routes/node.route')
 const app = express();
 
 // Global middleware
@@ -33,5 +33,6 @@ app.use("/api/auth", authRoutes)
 app.use("/api/users" , userRoutes)
 app.use("/api/checkins", checkinRoutes)
 app.use("/api/incidents" , incidentRoutes)
+app.use("/api/nodes" , nodeRoutes)
 
 module.exports = app;

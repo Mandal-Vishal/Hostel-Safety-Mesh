@@ -33,12 +33,16 @@ const incidentSchema = new mongoose.Schema(
         ref: "Node",
         default: null,
       },
+      eventId: {
+        type: String,
+        default: null,
+      },
     },
 
     residentId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: true,
+      default: null,
     },
 
     location: {
@@ -49,12 +53,7 @@ const incidentSchema = new mongoose.Schema(
 
     status: {
       type: String,
-      enum: [
-        "PENDING",
-        "ACKNOWLEDGED",
-        "ESCALATED",
-        "RESOLVED",
-      ],
+      enum: ["PENDING", "ACKNOWLEDGED", "ESCALATED", "RESOLVED"],
       default: "PENDING",
       index: true,
     },
@@ -105,7 +104,9 @@ const incidentSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
+
+incidentSchema.index({ "source.eventId": 1 }, { unique: true, sparse: true });
 
 module.exports = mongoose.model("Incident", incidentSchema);
