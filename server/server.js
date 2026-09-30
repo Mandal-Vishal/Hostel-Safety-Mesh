@@ -1,15 +1,17 @@
-require("dotenv").config();
+const dotenv = require("dotenv");
+dotenv.config();
+
+const http = require("http");
+const { Server } = require("socket.io");
 
 const app = require("./src/app");
 const connectDB = require("./src/config/db");
 
+const initializeSocket = require("./src/socket/socketManager");
 const { initializeMQTT } = require("./src/services/mqtt.service");
 const { startNodeHealthMonitor } = require("./src/services/nodeHealth.service");
 
 const PORT = process.env.PORT || 5000;
-
-const http = require("http");
-const { Server } = require("socket.io");
 
 const httpServer = http.createServer(app);
 
@@ -22,13 +24,7 @@ const io = new Server(httpServer, {
 
 app.set("io", io);
 
-io.on("connection", (socket) => {
-  console.log(`Socket connected: ${socket.id}`);
-
-  socket.on("disconnect", () => {
-    console.log(`Socket disconnected: ${socket.id}`);
-  });
-});
+initializeSocket(io);
 
 const startServer = async () => {
   try {

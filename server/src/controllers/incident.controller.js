@@ -7,6 +7,7 @@ const generateIncidentId = () => {
   return `INC-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`;
 };
 
+// Format all date fields before sending API response
 const formatIncident = (incident) => {
   const data = incident.toObject ? incident.toObject() : incident;
 
@@ -23,7 +24,6 @@ const formatIncident = (incident) => {
 };
 
 // Resident creates SOS
-
 const createSOS = async (req, res) => {
   try {
     const { currentZone } = req.body;
@@ -64,10 +64,36 @@ const createSOS = async (req, res) => {
       newState: "PENDING",
     });
 
+    // Populate resident details for real-time warden notification
+    await incident.populate(
+      "residentId",
+      "firstName lastName email hostel currentZone"
+    );
+
+    const formattedIncident = formatIncident(incident);
+
+    // Socket.IO
+    const io = req.app.get("io");
+
+    if (io) {
+      // Notify all connected wardens
+      io.to("role:warden").emit("incident:new", {
+        incident: formattedIncident,
+      });
+
+      // Confirm incident creation to resident
+      io.to(`user:${req.user._id.toString()}`).emit(
+        "incident:created",
+        {
+          incident: formattedIncident,
+        }
+      );
+    }
+
     res.status(201).json({
       success: true,
       message: "SOS received successfully",
-      incident: formatIncident(incident),
+      incident: formattedIncident,
     });
   } catch (error) {
     console.error("Create SOS error:", error);
@@ -80,7 +106,6 @@ const createSOS = async (req, res) => {
 };
 
 // Resident sees own incidents
-
 const getMyIncidents = async (req, res) => {
   try {
     const incidents = await Incident.find({
@@ -104,7 +129,6 @@ const getMyIncidents = async (req, res) => {
 };
 
 // Warden / Security view incidents
-
 const getIncidents = async (req, res) => {
   try {
     const filter = {};
@@ -118,9 +142,18 @@ const getIncidents = async (req, res) => {
         "residentId",
         "firstName lastName email hostel currentZone"
       )
-      .populate("acknowledgedBy", "firstName lastName role")
-      .populate("escalatedTo", "firstName lastName role")
-      .populate("resolvedBy", "firstName lastName role")
+      .populate(
+        "acknowledgedBy",
+        "firstName lastName role"
+      )
+      .populate(
+        "escalatedTo",
+        "firstName lastName role"
+      )
+      .populate(
+        "resolvedBy",
+        "firstName lastName role"
+      )
       .sort({ createdAt: -1 })
       .limit(100);
 
@@ -139,7 +172,6 @@ const getIncidents = async (req, res) => {
 };
 
 // Get one incident
-
 const getIncidentById = async (req, res) => {
   try {
     const incident = await Incident.findOne({
@@ -149,9 +181,18 @@ const getIncidentById = async (req, res) => {
         "residentId",
         "firstName lastName email hostel currentZone"
       )
-      .populate("acknowledgedBy", "firstName lastName role")
-      .populate("escalatedTo", "firstName lastName role")
-      .populate("resolvedBy", "firstName lastName role");
+      .populate(
+        "acknowledgedBy",
+        "firstName lastName role"
+      )
+      .populate(
+        "escalatedTo",
+        "firstName lastName role"
+      )
+      .populate(
+        "resolvedBy",
+        "firstName lastName role"
+      );
 
     if (!incident) {
       return res.status(404).json({
@@ -160,15 +201,18 @@ const getIncidentById = async (req, res) => {
       });
     }
 
-    // Resident can only see their own incident
-    if (
-      req.user.role === "resident" &&
-      incident.residentId._id.toString() !== req.user._id.toString()
-    ) {
-      return res.status(403).json({
-        success: false,
-        message: "Access denied",
-      });
+    // Resident can only access their own incidents
+    if (req.user.role === "resident") {
+      if (
+        !incident.residentId ||
+        incident.residentId._id.toString() !==
+          req.user._id.toString()
+      ) {
+        return res.status(403).json({
+          success: false,
+          message: "Access denied",
+        });
+      }
     }
 
     res.json({
@@ -186,7 +230,6 @@ const getIncidentById = async (req, res) => {
 };
 
 // Warden acknowledges incident
-
 const acknowledgeIncident = async (req, res) => {
   try {
     const incident = await Incident.findOne({
@@ -200,7 +243,11 @@ const acknowledgeIncident = async (req, res) => {
       });
     }
 
-    if (!["PENDING", "ESCALATED"].includes(incident.status)) {
+    if (
+      !["PENDING", "ESCALATED"].includes(
+        incident.status
+      )
+    ) {
       return res.status(400).json({
         success: false,
         message: `Cannot acknowledge incident in ${incident.status} state`,
@@ -215,7 +262,7 @@ const acknowledgeIncident = async (req, res) => {
 
     await incident.save();
 
-    // Audit: incident acknowledged
+    // Audit
     await createAuditLog({
       action: "INCIDENT_ACKNOWLEDGED",
       actorType: "USER",
@@ -227,10 +274,39 @@ const acknowledgeIncident = async (req, res) => {
       newState: "ACKNOWLEDGED",
     });
 
+    // Get resident details for notification
+    await incident.populate(
+      "residentId",
+      "firstName lastName email hostel currentZone"
+    );
+
+    const formattedIncident = formatIncident(incident);
+
+    const io = req.app.get("io");
+
+    if (io) {
+      // Notify the resident
+      if (incident.residentId) {
+        io.to(
+          `user:${incident.residentId._id.toString()}`
+        ).emit("incident:acknowledged", {
+          incident: formattedIncident,
+        });
+      }
+
+      // Update wardens
+      io.to("role:warden").emit(
+        "incident:updated",
+        {
+          incident: formattedIncident,
+        }
+      );
+    }
+
     res.json({
       success: true,
       message: "Incident acknowledged",
-      incident: formatIncident(incident),
+      incident: formattedIncident,
     });
   } catch (error) {
     console.error("Acknowledge error:", error);
@@ -286,13 +362,14 @@ const escalateIncident = async (req, res) => {
 
     incident.status = "ESCALATED";
     incident.escalatedAt = new Date();
-    incident.escalatedTo = securityUser?._id || null;
+    incident.escalatedTo =
+      securityUser?._id || null;
     incident.escalationReason =
       reason || "Incident requires escalation";
 
     await incident.save();
 
-    // Audit: incident escalated
+    // Audit
     await createAuditLog({
       action: "INCIDENT_ESCALATED",
       actorType: "USER",
@@ -305,10 +382,48 @@ const escalateIncident = async (req, res) => {
       reason: incident.escalationReason,
     });
 
+    // Populate required details
+    await incident.populate(
+      "residentId",
+      "firstName lastName email hostel currentZone"
+    );
+
+    const formattedIncident = formatIncident(incident);
+
+    const io = req.app.get("io");
+
+    if (io) {
+      // Notify wardens
+      io.to("role:warden").emit(
+        "incident:escalated",
+        {
+          incident: formattedIncident,
+        }
+      );
+
+      // Notify assigned security
+      if (securityUser) {
+        io.to(
+          `user:${securityUser._id.toString()}`
+        ).emit("incident:assigned", {
+          incident: formattedIncident,
+        });
+      }
+
+      // Notify resident
+      if (incident.residentId) {
+        io.to(
+          `user:${incident.residentId._id.toString()}`
+        ).emit("incident:escalated", {
+          incident: formattedIncident,
+        });
+      }
+    }
+
     res.json({
       success: true,
       message: "Incident escalated",
-      incident: formatIncident(incident),
+      incident: formattedIncident,
     });
   } catch (error) {
     console.error("Escalation error:", error);
@@ -336,7 +451,11 @@ const resolveIncident = async (req, res) => {
       });
     }
 
-    if (!["ACKNOWLEDGED", "ESCALATED"].includes(incident.status)) {
+    if (
+      !["ACKNOWLEDGED", "ESCALATED"].includes(
+        incident.status
+      )
+    ) {
       return res.status(400).json({
         success: false,
         message: `Cannot resolve incident in ${incident.status} state`,
@@ -348,11 +467,12 @@ const resolveIncident = async (req, res) => {
     incident.status = "RESOLVED";
     incident.resolvedAt = new Date();
     incident.resolvedBy = req.user._id;
-    incident.resolutionNote = resolutionNote || null;
+    incident.resolutionNote =
+      resolutionNote || null;
 
     await incident.save();
 
-    // Audit: incident resolved
+    // Audit
     await createAuditLog({
       action: "INCIDENT_RESOLVED",
       actorType: "USER",
@@ -365,10 +485,48 @@ const resolveIncident = async (req, res) => {
       reason: resolutionNote || null,
     });
 
+    // Populate details for notification
+    await incident.populate(
+      "residentId",
+      "firstName lastName email hostel currentZone"
+    );
+
+    const formattedIncident = formatIncident(incident);
+
+    const io = req.app.get("io");
+
+    if (io) {
+      // Notify wardens
+      io.to("role:warden").emit(
+        "incident:resolved",
+        {
+          incident: formattedIncident,
+        }
+      );
+
+      // Notify assigned security
+      if (incident.escalatedTo) {
+        io.to(
+          `user:${incident.escalatedTo.toString()}`
+        ).emit("incident:resolved", {
+          incident: formattedIncident,
+        });
+      }
+
+      // Notify resident
+      if (incident.residentId) {
+        io.to(
+          `user:${incident.residentId._id.toString()}`
+        ).emit("incident:resolved", {
+          incident: formattedIncident,
+        });
+      }
+    }
+
     res.json({
       success: true,
       message: "Incident resolved",
-      incident: formatIncident(incident),
+      incident: formattedIncident,
     });
   } catch (error) {
     console.error("Resolve error:", error);
