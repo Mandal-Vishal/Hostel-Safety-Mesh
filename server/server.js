@@ -10,6 +10,7 @@ const connectDB = require("./src/config/db");
 const initializeSocket = require("./src/socket/socketManager");
 const { initializeMQTT } = require("./src/services/mqtt.service");
 const { startNodeHealthMonitor } = require("./src/services/nodeHealth.service");
+const {startIncidentEscalationService} = require("./src/services/incidentEscalation.service");
 
 const PORT = process.env.PORT || 5000;
 
@@ -33,6 +34,8 @@ const startServer = async () => {
     initializeMQTT(io);
 
     startNodeHealthMonitor(io);
+
+    startIncidentEscalationService(io)
 
     httpServer.listen(PORT, () => {
       console.log(`Server running on http://localhost:${PORT}`);

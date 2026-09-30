@@ -1,5 +1,6 @@
 const Incident = require("../models/incident.model");
 const User = require("../models/user.model");
+
 const formatDateIST = require("../utils/formatDate");
 const { createAuditLog } = require("../services/audit.service");
 
@@ -18,7 +19,9 @@ const formatIncident = (incident) => {
     updatedAt: formatDateIST(data.updatedAt),
 
     acknowledgedAt: formatDateIST(data.acknowledgedAt),
+
     escalatedAt: formatDateIST(data.escalatedAt),
+
     resolvedAt: formatDateIST(data.resolvedAt),
   };
 };
@@ -29,10 +32,7 @@ const createSOS = async (req, res) => {
     const { currentZone } = req.body;
 
     const location =
-      currentZone ||
-      req.user.currentZone ||
-      req.user.hostel ||
-      {};
+      currentZone || req.user.currentZone || req.user.hostel || {};
 
     const incident = await Incident.create({
       incidentId: generateIncidentId(),
@@ -43,6 +43,7 @@ const createSOS = async (req, res) => {
         type: "RESIDENT_APP",
         userId: req.user._id,
         nodeId: null,
+        eventId: null,
       },
 
       residentId: req.user._id,
@@ -55,19 +56,30 @@ const createSOS = async (req, res) => {
     // Audit: SOS created
     await createAuditLog({
       action: "SOS_CREATED",
-      actorType: "USER",
-      actorUserId: req.user._id,
-      actorRole: req.user.role,
-      entityType: "INCIDENT",
-      entityId: incident._id,
+
+      actor: {
+        type: "USER",
+        userId: req.user._id,
+        role: req.user.role,
+      },
+
+      entity: {
+        type: "INCIDENT",
+        entityId: incident._id,
+      },
+
       previousState: null,
       newState: "PENDING",
+
+      metadata: {
+        reason: "Resident triggered SOS",
+      },
     });
 
     // Populate resident details for real-time warden notification
     await incident.populate(
       "residentId",
-      "firstName lastName email hostel currentZone"
+      "firstName lastName email hostel currentZone",
     );
 
     const formattedIncident = formatIncident(incident);
@@ -82,12 +94,9 @@ const createSOS = async (req, res) => {
       });
 
       // Confirm incident creation to resident
-      io.to(`user:${req.user._id.toString()}`).emit(
-        "incident:created",
-        {
-          incident: formattedIncident,
-        }
-      );
+      io.to(`user:${req.user._id.toString()}`).emit("incident:created", {
+        incident: formattedIncident,
+      });
     }
 
     res.status(201).json({
@@ -138,22 +147,10 @@ const getIncidents = async (req, res) => {
     }
 
     const incidents = await Incident.find(filter)
-      .populate(
-        "residentId",
-        "firstName lastName email hostel currentZone"
-      )
-      .populate(
-        "acknowledgedBy",
-        "firstName lastName role"
-      )
-      .populate(
-        "escalatedTo",
-        "firstName lastName role"
-      )
-      .populate(
-        "resolvedBy",
-        "firstName lastName role"
-      )
+      .populate("residentId", "firstName lastName email hostel currentZone")
+      .populate("acknowledgedBy", "firstName lastName role")
+      .populate("escalatedTo", "firstName lastName role")
+      .populate("resolvedBy", "firstName lastName role")
       .sort({ createdAt: -1 })
       .limit(100);
 
@@ -177,22 +174,10 @@ const getIncidentById = async (req, res) => {
     const incident = await Incident.findOne({
       incidentId: req.params.incidentId,
     })
-      .populate(
-        "residentId",
-        "firstName lastName email hostel currentZone"
-      )
-      .populate(
-        "acknowledgedBy",
-        "firstName lastName role"
-      )
-      .populate(
-        "escalatedTo",
-        "firstName lastName role"
-      )
-      .populate(
-        "resolvedBy",
-        "firstName lastName role"
-      );
+      .populate("residentId", "firstName lastName email hostel currentZone")
+      .populate("acknowledgedBy", "firstName lastName role")
+      .populate("escalatedTo", "firstName lastName role")
+      .populate("resolvedBy", "firstName lastName role");
 
     if (!incident) {
       return res.status(404).json({
@@ -205,8 +190,7 @@ const getIncidentById = async (req, res) => {
     if (req.user.role === "resident") {
       if (
         !incident.residentId ||
-        incident.residentId._id.toString() !==
-          req.user._id.toString()
+        incident.residentId._id.toString() !== req.user._id.toString()
       ) {
         return res.status(403).json({
           success: false,
@@ -243,11 +227,7 @@ const acknowledgeIncident = async (req, res) => {
       });
     }
 
-    if (
-      !["PENDING", "ESCALATED"].includes(
-        incident.status
-      )
-    ) {
+    if (!["PENDING", "ESCALATED"].includes(incident.status)) {
       return res.status(400).json({
         success: false,
         message: `Cannot acknowledge incident in ${incident.status} state`,
@@ -265,19 +245,30 @@ const acknowledgeIncident = async (req, res) => {
     // Audit
     await createAuditLog({
       action: "INCIDENT_ACKNOWLEDGED",
-      actorType: "USER",
-      actorUserId: req.user._id,
-      actorRole: req.user.role,
-      entityType: "INCIDENT",
-      entityId: incident._id,
+
+      actor: {
+        type: "USER",
+        userId: req.user._id,
+        role: req.user.role,
+      },
+
+      entity: {
+        type: "INCIDENT",
+        entityId: incident._id,
+      },
+
       previousState,
       newState: "ACKNOWLEDGED",
+
+      metadata: {
+        reason: "Warden acknowledged incident",
+      },
     });
 
     // Get resident details for notification
     await incident.populate(
       "residentId",
-      "firstName lastName email hostel currentZone"
+      "firstName lastName email hostel currentZone",
     );
 
     const formattedIncident = formatIncident(incident);
@@ -287,20 +278,18 @@ const acknowledgeIncident = async (req, res) => {
     if (io) {
       // Notify the resident
       if (incident.residentId) {
-        io.to(
-          `user:${incident.residentId._id.toString()}`
-        ).emit("incident:acknowledged", {
-          incident: formattedIncident,
-        });
+        io.to(`user:${incident.residentId._id.toString()}`).emit(
+          "incident:acknowledged",
+          {
+            incident: formattedIncident,
+          },
+        );
       }
 
       // Update wardens
-      io.to("role:warden").emit(
-        "incident:updated",
-        {
-          incident: formattedIncident,
-        }
-      );
+      io.to("role:warden").emit("incident:updated", {
+        incident: formattedIncident,
+      });
     }
 
     res.json({
@@ -362,30 +351,40 @@ const escalateIncident = async (req, res) => {
 
     incident.status = "ESCALATED";
     incident.escalatedAt = new Date();
-    incident.escalatedTo =
-      securityUser?._id || null;
-    incident.escalationReason =
-      reason || "Incident requires escalation";
+
+    incident.escalatedTo = securityUser?._id || null;
+
+    incident.escalationReason = reason || "Incident requires escalation";
 
     await incident.save();
 
     // Audit
     await createAuditLog({
       action: "INCIDENT_ESCALATED",
-      actorType: "USER",
-      actorUserId: req.user._id,
-      actorRole: req.user.role,
-      entityType: "INCIDENT",
-      entityId: incident._id,
+
+      actor: {
+        type: "USER",
+        userId: req.user._id,
+        role: req.user.role,
+      },
+
+      entity: {
+        type: "INCIDENT",
+        entityId: incident._id,
+      },
+
       previousState,
       newState: "ESCALATED",
-      reason: incident.escalationReason,
+
+      metadata: {
+        reason: incident.escalationReason,
+      },
     });
 
     // Populate required details
     await incident.populate(
       "residentId",
-      "firstName lastName email hostel currentZone"
+      "firstName lastName email hostel currentZone",
     );
 
     const formattedIncident = formatIncident(incident);
@@ -394,29 +393,25 @@ const escalateIncident = async (req, res) => {
 
     if (io) {
       // Notify wardens
-      io.to("role:warden").emit(
-        "incident:escalated",
-        {
-          incident: formattedIncident,
-        }
-      );
+      io.to("role:warden").emit("incident:escalated", {
+        incident: formattedIncident,
+      });
 
       // Notify assigned security
       if (securityUser) {
-        io.to(
-          `user:${securityUser._id.toString()}`
-        ).emit("incident:assigned", {
+        io.to(`user:${securityUser._id.toString()}`).emit("incident:assigned", {
           incident: formattedIncident,
         });
       }
 
       // Notify resident
       if (incident.residentId) {
-        io.to(
-          `user:${incident.residentId._id.toString()}`
-        ).emit("incident:escalated", {
-          incident: formattedIncident,
-        });
+        io.to(`user:${incident.residentId._id.toString()}`).emit(
+          "incident:escalated",
+          {
+            incident: formattedIncident,
+          },
+        );
       }
     }
 
@@ -451,11 +446,7 @@ const resolveIncident = async (req, res) => {
       });
     }
 
-    if (
-      !["ACKNOWLEDGED", "ESCALATED"].includes(
-        incident.status
-      )
-    ) {
+    if (!["ACKNOWLEDGED", "ESCALATED"].includes(incident.status)) {
       return res.status(400).json({
         success: false,
         message: `Cannot resolve incident in ${incident.status} state`,
@@ -467,28 +458,38 @@ const resolveIncident = async (req, res) => {
     incident.status = "RESOLVED";
     incident.resolvedAt = new Date();
     incident.resolvedBy = req.user._id;
-    incident.resolutionNote =
-      resolutionNote || null;
+
+    incident.resolutionNote = resolutionNote || null;
 
     await incident.save();
 
     // Audit
     await createAuditLog({
       action: "INCIDENT_RESOLVED",
-      actorType: "USER",
-      actorUserId: req.user._id,
-      actorRole: req.user.role,
-      entityType: "INCIDENT",
-      entityId: incident._id,
+
+      actor: {
+        type: "USER",
+        userId: req.user._id,
+        role: req.user.role,
+      },
+
+      entity: {
+        type: "INCIDENT",
+        entityId: incident._id,
+      },
+
       previousState,
       newState: "RESOLVED",
-      reason: resolutionNote || null,
+
+      metadata: {
+        reason: resolutionNote || null,
+      },
     });
 
     // Populate details for notification
     await incident.populate(
       "residentId",
-      "firstName lastName email hostel currentZone"
+      "firstName lastName email hostel currentZone",
     );
 
     const formattedIncident = formatIncident(incident);
@@ -497,29 +498,28 @@ const resolveIncident = async (req, res) => {
 
     if (io) {
       // Notify wardens
-      io.to("role:warden").emit(
-        "incident:resolved",
-        {
-          incident: formattedIncident,
-        }
-      );
+      io.to("role:warden").emit("incident:resolved", {
+        incident: formattedIncident,
+      });
 
       // Notify assigned security
       if (incident.escalatedTo) {
-        io.to(
-          `user:${incident.escalatedTo.toString()}`
-        ).emit("incident:resolved", {
-          incident: formattedIncident,
-        });
+        io.to(`user:${incident.escalatedTo.toString()}`).emit(
+          "incident:resolved",
+          {
+            incident: formattedIncident,
+          },
+        );
       }
 
       // Notify resident
       if (incident.residentId) {
-        io.to(
-          `user:${incident.residentId._id.toString()}`
-        ).emit("incident:resolved", {
-          incident: formattedIncident,
-        });
+        io.to(`user:${incident.residentId._id.toString()}`).emit(
+          "incident:resolved",
+          {
+            incident: formattedIncident,
+          },
+        );
       }
     }
 

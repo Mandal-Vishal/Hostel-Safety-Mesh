@@ -1,85 +1,74 @@
 const crypto = require("crypto");
 const AuditLog = require("../models/auditLog.model");
 
-const createHash = (data) => {
-  return crypto
-    .createHash("sha256")
-    .update(data)
-    .digest("hex");
-};
-
-const createSignature = (data) => {
-  return crypto
-    .createHmac(
-      "sha256",
-      process.env.AUDIT_SECRET
-    )
-    .update(data)
-    .digest("hex");
-};
-
 const createAuditLog = async ({
   action,
-  actorType,
-  actorUserId = null,
-  actorRole = null,
-  entityType,
-  entityId,
+  actor,
+  entity,
   previousState = null,
   newState = null,
-  reason = null,
+  metadata = {},
 }) => {
-  const previousLog = await AuditLog.findOne()
-    .sort({ timestamp: -1, _id: -1 })
-    .lean();
+  try {
+    const previousLog = await AuditLog.findOne({})
+      .sort({ timestamp: -1, _id: -1 })
+      .lean();
 
-  const previousHash = previousLog?.hash || null;
+    const previousHash = previousLog?.hash || null;
 
-  const timestamp = new Date();
+    const timestamp = new Date();
 
-  const payload = JSON.stringify({
-    action,
-    actorType,
-    actorUserId: actorUserId?.toString() || null,
-    actorRole,
-    entityType,
-    entityId: entityId.toString(),
-    previousState,
-    newState,
-    reason,
-    timestamp: timestamp.toISOString(),
-    previousHash,
-  });
+    const auditData = {
+      action,
 
-  const hash = createHash(payload);
-  const signature = createSignature(hash);
+      actor: {
+        type: actor?.type || "SYSTEM",
+        userId: actor?.userId || null,
+        role: actor?.role || null,
+      },
 
-  return AuditLog.create({
-    action,
+      entity: {
+        type: entity?.type || null,
+        entityId: entity?.entityId || null,
+      },
 
-    actor: {
-      type: actorType,
-      userId: actorUserId,
-      role: actorRole,
-    },
+      previousState,
+      newState,
 
-    entity: {
-      type: entityType,
-      entityId,
-    },
+      metadata: {
+        reason: metadata?.reason || null,
+      },
 
-    previousState,
-    newState,
+      timestamp,
+      previousHash,
+    };
 
-    metadata: {
-      reason,
-    },
+    // SHA-256 hash of the current audit record
+    const hash = crypto
+      .createHash("sha256")
+      .update(JSON.stringify(auditData))
+      .digest("hex");
 
-    timestamp,
-    previousHash,
-    hash,
-    signature,
-  });
+    // HMAC signature for integrity verification
+    const signature = crypto
+      .createHmac(
+        "sha256",
+        process.env.AUDIT_SECRET
+      )
+      .update(hash)
+      .digest("hex");
+
+    const auditLog = await AuditLog.create({
+      ...auditData,
+      hash,
+      signature,
+    });
+
+    return auditLog;
+  } catch (error) {
+    console.error("Audit log creation error:", error);
+    throw error;
+  }
 };
 
 module.exports = {
