@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
 import DashboardLayout from '../../components/layout/DashboardLayout'
-import SOSButton from '../../components/sos/SOSButton'
 import SOSConfirmation from '../../components/sos/SOSConfirmation'
 import SOSStatusCard from '../../components/sos/SOSStatusCard'
 import Spinner from '../../components/ui/Spinner'
 import ErrorState from '../../components/ui/ErrorState'
-import { getActiveSOS, createSOS } from '../../services/sosService'
+import { getActiveSOS, createSOS, _devAdvanceStatus } from '../../services/sosService'
+import { SOS_STATUSES } from '../../utils/sosStatus'
 
 const mobileLinks = [
   { to: '/resident/dashboard', label: 'Home' },
@@ -47,6 +47,15 @@ export default function SOS() {
     }
   }
 
+  function advanceStatus() {
+    const currentIndex = SOS_STATUSES.indexOf(activeSOS.status)
+    const next = SOS_STATUSES[currentIndex + 1]
+    if (next) {
+      _devAdvanceStatus(next)
+      setActiveSOS({ ...activeSOS, status: next })
+    }
+  }
+
   return (
     <DashboardLayout mobileLinks={mobileLinks}>
       <div className="max-w-md mx-auto">
@@ -67,7 +76,19 @@ export default function SOS() {
           </div>
         )}
 
-        {!loading && !error && activeSOS && <SOSStatusCard sos={activeSOS} />}
+        {!loading && !error && activeSOS && (
+          <>
+            <SOSStatusCard sos={activeSOS} />
+            {activeSOS.status !== 'RESOLVED' && (
+              <button
+                onClick={advanceStatus}
+                className="mt-4 text-xs text-neutral-600 underline block mx-auto"
+              >
+                [DEV] Advance status →
+              </button>
+            )}
+          </>
+        )}
 
         <SOSConfirmation
           open={confirmOpen}
