@@ -1,0 +1,12 @@
+{
+  "name": "hostel-safety-mesh-simulator",
+  "version": "1.0.0",
+  "main": "simulator.js",
+  "scripts": {
+    "start": "node simulator.js"
+  },
+  "dependencies": {
+    "dotenv": "^17.0.0",
+    "mqtt": "^5.0.0"
+  }
+}

@@ -1,7 +1,7 @@
 const express = require("express");
 
-const protect = require("../middleware/authMiddleware");
-const authorize = require("../middleware/roleMiddleware");
+const protect = require("../middlewares/auth.middleware");
+const authorize = require("../middlewares/role.middleware");
 
 const {
   getNodes,

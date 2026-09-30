@@ -1,10 +1,10 @@
 require("dotenv").config();
 
-const app = require("./app");
-const connectDB = require("./config/db");
+const app = require("./src/app");
+const connectDB = require("./src/config/db");
 
-const { initializeMQTT } = require("./services/mqtt.service");
-const { startNodeHealthMonitor } = require("./services/nodeHealth.service");
+const { initializeMQTT } = require("./src/services/mqtt.service");
+const { startNodeHealthMonitor } = require("./src/services/nodeHealth.service");
 
 const PORT = process.env.PORT || 5000;
 
