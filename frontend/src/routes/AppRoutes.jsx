@@ -8,6 +8,9 @@ import WardenDashboard from '../pages/warden/WardenDashboard'
 import SecurityDashboard from '../pages/security/SecurityDashboard'
 import AdminDashboard from '../pages/admin/AdminDashboard'
 
+import CheckIn from '../pages/resident/CheckIn'
+import SOS from '../pages/resident/SOS'
+
 export default function AppRoutes() {
   return (
     <Routes>
@@ -19,6 +22,23 @@ export default function AppRoutes() {
         element={
           <ProtectedRoute allowedRoles={['resident']}>
             <ResidentDashboard />
+          </ProtectedRoute>
+        }
+      />
+     
+      <Route
+        path="/resident/check-in"
+        element={
+          <ProtectedRoute allowedRoles={['resident']}>
+            <CheckIn />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/resident/sos"
+        element={
+          <ProtectedRoute allowedRoles={['resident']}>
+            <SOS />
           </ProtectedRoute>
         }
       />
