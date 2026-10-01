@@ -1,3 +1,4 @@
+import { mockSocket } from './mockSocket'
 import api from './api'
 import { USE_MOCK } from './config'
 
@@ -39,7 +40,10 @@ export async function getSOSDetails(id) {
 
 // dev helper only — lets you manually advance status to test the timeline (removed from real backend flow)
 export function _devAdvanceStatus(newStatus) {
-  if (mockSOSState) mockSOSState = { ...mockSOSState, status: newStatus }
+  if (mockSOSState) {
+    mockSOSState = { ...mockSOSState, status: newStatus }
+    mockSocket._emit('sos:acknowledged', mockSOSState) // simplified — real backend would emit distinct events per status
+  }
 }
 
 function delay(ms) {

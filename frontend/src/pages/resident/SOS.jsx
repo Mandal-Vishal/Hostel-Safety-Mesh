@@ -6,6 +6,7 @@ import Spinner from '../../components/ui/Spinner'
 import ErrorState from '../../components/ui/ErrorState'
 import { getActiveSOS, createSOS, _devAdvanceStatus } from '../../services/sosService'
 import { SOS_STATUSES } from '../../utils/sosStatus'
+import { useSocketEvent } from '../../hooks/useSocket'
 
 const mobileLinks = [
   { to: '/resident/dashboard', label: 'Home' },
@@ -24,6 +25,10 @@ export default function SOS() {
   useEffect(() => {
     loadActive()
   }, [])
+
+  useSocketEvent('sos:acknowledged', (updatedSOS) => {
+    setActiveSOS(updatedSOS)
+  })
 
   function loadActive() {
     setLoading(true)
@@ -52,7 +57,6 @@ export default function SOS() {
     const next = SOS_STATUSES[currentIndex + 1]
     if (next) {
       _devAdvanceStatus(next)
-      setActiveSOS({ ...activeSOS, status: next })
     }
   }
 
