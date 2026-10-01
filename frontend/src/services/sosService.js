@@ -60,6 +60,19 @@ export async function getSOSDetails(id) {
   return res.data
 }
 
+export async function updateSOSStatus(id, status) {
+  if (USE_MOCK) {
+    await delay(500)
+    if (mockSOSState && mockSOSState.id === id) {
+      mockSOSState = { ...mockSOSState, status }
+      mockSocket._emit('sos:acknowledged', mockSOSState) // reusing the same event name for simplicity
+    }
+    return { ...mockSOSState }
+  }
+  const res = await api.patch(`/sos/${id}/status`, { status })
+  return res.data
+}
+
 // dev helper only — lets you manually advance status to test the timeline (removed from real backend flow)
 export function _devAdvanceStatus(newStatus) {
   if (mockSOSState) {
