@@ -36,7 +36,7 @@ const incidentSchema = new mongoose.Schema(
 
       eventId: {
         type: String,
-        default: null,
+        default: undefined,
       },
     },
 
@@ -115,7 +115,14 @@ const incidentSchema = new mongoose.Schema(
 
 incidentSchema.index(
   { "source.eventId": 1 },
-  { unique: true, sparse: true }
+  {
+    unique: true,
+    partialFilterExpression: {
+      "source.eventId": {
+        $type: "string",
+      },
+    },
+  }
 );
 
 module.exports = mongoose.model("Incident", incidentSchema);

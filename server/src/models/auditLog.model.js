@@ -50,10 +50,8 @@ const auditLogSchema = new mongoose.Schema(
     },
 
     metadata: {
-      reason: {
-        type: String,
-        default: null,
-      },
+        type: mongoose.Schema.Types.Mixed,
+        default: {},
     },
 
     timestamp: {
@@ -82,7 +80,7 @@ const auditLogSchema = new mongoose.Schema(
   },
   {
     versionKey: false,
-  }
+  },
 );
 
 module.exports = mongoose.model("AuditLog", auditLogSchema);

@@ -33,6 +33,7 @@ app.use("/api/auth", authRoutes)
 app.use("/api/users" , userRoutes)
 app.use("/api/checkins", checkinRoutes)
 app.use("/api/incidents" , incidentRoutes)
+app.use("/api/audits" , auditRoutes)
 app.use("/api/nodes" , nodeRoutes)
 
 module.exports = app;

@@ -1,5 +1,6 @@
 const AuditLog = require("../models/auditLog.model");
 const formatDateIST = require("../utils/formatDate");
+const {verifyAuditChain} = require("../services/audit.service")
 
 const getAuditLogs = async (req, res) => {
   try {
@@ -34,6 +35,31 @@ const getAuditLogs = async (req, res) => {
   }
 };
 
+// Verify audit hash chain
+const verifyAuditLogs = async (req, res) => {
+  try {
+    const result = await verifyAuditChain();
+
+    res.status(200).json({
+      success: true,
+      verification: {
+        ...result,
+        verifiedAt: result.verifiedAt
+          ? formatDateIST(result.verifiedAt)
+          : null,
+      },
+    });
+  } catch (error) {
+    console.error("Audit verification error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to verify audit chain",
+    });
+  }
+};
+
 module.exports = {
   getAuditLogs,
+  verifyAuditLogs
 };

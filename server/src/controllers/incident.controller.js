@@ -43,7 +43,6 @@ const createSOS = async (req, res) => {
         type: "RESIDENT_APP",
         userId: req.user._id,
         nodeId: null,
-        eventId: null,
       },
 
       residentId: req.user._id,

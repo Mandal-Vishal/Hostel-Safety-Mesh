@@ -46,7 +46,7 @@ const escalatePendingIncidents = async (io) => {
             status: "ESCALATED",
             escalatedAt: new Date(),
             escalatedTo: securityUser ? securityUser._id : null,
-            escalatedReason:
+            escalationReason:
               "Automatic escalation due to acknowledgement timeout",
           },
         },
@@ -114,7 +114,7 @@ const escalatePendingIncidents = async (io) => {
 
         escalatedToRole: "SECURITY",
 
-        escalatedReason: updatedIncident.escalatedReason,
+        escalationReason: updatedIncident.escalationReason,
       };
 
       // Notify all wardens
