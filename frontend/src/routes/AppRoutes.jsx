@@ -16,6 +16,10 @@ import ActiveSOS from '../pages/warden/ActiveSOS'
 import Incidents from '../pages/resident/Incidents'
 import ReportIncident from '../pages/resident/ReportIncident'
 
+import IncidentDetail from '../pages/resident/IncidentDetail'
+import WardenIncidents from '../pages/warden/Incidents'
+import WardenIncidentDetail from '../pages/warden/IncidentDetail'
+
 export default function AppRoutes() {
   return (
     <Routes>
@@ -66,6 +70,15 @@ export default function AppRoutes() {
       />
 
       <Route
+        path="/resident/incidents/:id"
+        element={
+          <ProtectedRoute allowedRoles={['resident']}>
+            <IncidentDetail />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
         path="/warden/dashboard"
         element={
           <ProtectedRoute allowedRoles={['warden']}>
@@ -90,6 +103,23 @@ export default function AppRoutes() {
             </ProtectedRoute>
           }
         />
+
+      <Route
+        path="/warden/incidents"
+        element={
+          <ProtectedRoute allowedRoles={['warden']}>
+            <WardenIncidents />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/warden/incidents/:id"
+        element={
+          <ProtectedRoute allowedRoles={['warden']}>
+            <WardenIncidentDetail />
+          </ProtectedRoute>
+        }
+      />
 
       <Route
         path="/security/dashboard"

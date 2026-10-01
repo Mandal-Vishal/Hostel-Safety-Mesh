@@ -42,6 +42,31 @@ export async function getIncidentDetails(id) {
   return res.data
 }
 
+export async function updateIncident(id, updates) {
+  if (USE_MOCK) {
+    await delay(400)
+    mockIncidents = mockIncidents.map((i) => (i.id === id ? { ...i, ...updates } : i))
+    return mockIncidents.find((i) => i.id === id)
+  }
+  const res = await api.patch(`/incidents/${id}`, updates)
+  return res.data
+}
+
+// mock-only helper: a fixed timeline for demo purposes
+export function getMockTimeline(incident) {
+  const base = [{ label: 'Incident reported', time: incident.date }]
+  if (incident.status !== 'OPEN') {
+    base.push({ label: 'Warden assigned', time: incident.date })
+  }
+  if (incident.status === 'INVESTIGATING' || incident.status === 'RESOLVED') {
+    base.push({ label: 'Investigation started', time: incident.date })
+  }
+  if (incident.status === 'RESOLVED') {
+    base.push({ label: 'Marked resolved', time: incident.date })
+  }
+  return base
+}
+
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
