@@ -22,6 +22,8 @@ import WardenIncidentDetail from '../pages/warden/IncidentDetail'
 
 import Devices from '../pages/warden/Devices'
 
+import Notifications from '../pages/resident/Notifications'
+
 export default function AppRoutes() {
   return (
     <Routes>
@@ -76,6 +78,15 @@ export default function AppRoutes() {
         element={
           <ProtectedRoute allowedRoles={['resident']}>
             <IncidentDetail />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/resident/notifications"
+        element={
+          <ProtectedRoute allowedRoles={['resident']}>
+            <Notifications />
           </ProtectedRoute>
         }
       />
