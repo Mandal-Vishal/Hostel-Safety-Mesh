@@ -34,6 +34,10 @@ export default function SOSDetail() {
     setSos(updated)
   })
 
+  useSocketEvent('sos:escalated', (updated) => {
+    setSos(updated)
+  })
+
   function loadDetails() {
     setLoading(true)
     setError(false)
@@ -78,6 +82,15 @@ export default function SOSDetail() {
         {!loading && !error && sos && (
           <div className="space-y-4">
             <Card>
+              {sos.escalated && (
+                <div className="bg-danger-50 border border-danger-500 rounded-lg p-3 mb-3">
+                  <p className="text-danger-600 font-semibold text-sm">⚠ SOS ESCALATED</p>
+                  <p className="text-danger-600 text-xs mt-1">
+                    No acknowledgement received within the configured response window.
+                  </p>
+                </div>
+              )}
+
               <p className="text-sm text-neutral-600">Status</p>
               <p className="font-bold text-danger-600">{sos.status}</p>
 

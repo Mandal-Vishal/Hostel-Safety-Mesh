@@ -33,6 +33,11 @@ export default function WardenDashboard() {
     getAllActiveSOS().then(setActiveSOS)
   })
 
+  // live update: when an SOS escalates, refresh the active list
+  useSocketEvent('sos:escalated', () => {
+    getAllActiveSOS().then(setActiveSOS)
+  })
+
   function loadData() {
     setLoading(true)
     setError(false)

@@ -81,6 +81,19 @@ export function _devAdvanceStatus(newStatus) {
   }
 }
 
+export async function escalateSOS(id) {
+  if (USE_MOCK) {
+    await delay(300)
+    if (mockSOSState && mockSOSState.id === id) {
+      mockSOSState = { ...mockSOSState, escalated: true }
+      mockSocket._emit('sos:escalated', mockSOSState)
+    }
+    return { ...mockSOSState }
+  }
+  const res = await api.post(`/sos/${id}/escalate`)
+  return res.data
+}
+
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }

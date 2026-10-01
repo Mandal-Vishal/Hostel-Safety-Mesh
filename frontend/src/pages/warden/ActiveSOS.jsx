@@ -27,6 +27,8 @@ export default function ActiveSOS() {
 
   useSocketEvent('sos:acknowledged', () => loadList())
 
+  useSocketEvent('sos:escalated', (updated) => setSos(updated))
+
   function loadList() {
     setLoading(true)
     setError(false)
