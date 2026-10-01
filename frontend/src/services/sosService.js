@@ -13,6 +13,28 @@ export async function getActiveSOS() {
   return res.data
 }
 
+export async function getAllActiveSOS() {
+  if (USE_MOCK) {
+    await delay(300)
+    return mockSOSState ? [{ ...mockSOSState }] : []
+  }
+  const res = await api.get('/sos/active/all')
+  return res.data
+}
+
+export async function acknowledgeSOS(id) {
+  if (USE_MOCK) {
+    await delay(500)
+    if (mockSOSState && mockSOSState.id === id) {
+      mockSOSState = { ...mockSOSState, status: 'ACKNOWLEDGED' }
+      mockSocket._emit('sos:acknowledged', mockSOSState)
+    }
+    return { ...mockSOSState }
+  }
+  const res = await api.post(`/sos/${id}/acknowledge`)
+  return res.data
+}
+
 export async function createSOS() {
   if (USE_MOCK) {
     await delay(600)

@@ -10,6 +10,7 @@ import AdminDashboard from '../pages/admin/AdminDashboard'
 
 import CheckIn from '../pages/resident/CheckIn'
 import SOS from '../pages/resident/SOS'
+import SOSDetail from '../pages/warden/SOSDetail'
 
 export default function AppRoutes() {
   return (
@@ -51,6 +52,15 @@ export default function AppRoutes() {
           </ProtectedRoute>
         }
       />
+
+        <Route
+          path="/warden/sos/:id"
+          element={
+            <ProtectedRoute allowedRoles={['warden']}>
+              <SOSDetail />
+            </ProtectedRoute>
+          }
+        />
 
       <Route
         path="/security/dashboard"
