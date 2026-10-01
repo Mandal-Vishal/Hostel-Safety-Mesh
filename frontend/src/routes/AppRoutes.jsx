@@ -13,6 +13,9 @@ import SOS from '../pages/resident/SOS'
 import SOSDetail from '../pages/warden/SOSDetail'
 import ActiveSOS from '../pages/warden/ActiveSOS'
 
+import Incidents from '../pages/resident/Incidents'
+import ReportIncident from '../pages/resident/ReportIncident'
+
 export default function AppRoutes() {
   return (
     <Routes>
@@ -41,6 +44,23 @@ export default function AppRoutes() {
         element={
           <ProtectedRoute allowedRoles={['resident']}>
             <SOS />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/resident/incidents"
+        element={
+          <ProtectedRoute allowedRoles={['resident']}>
+            <Incidents />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/resident/incidents/report"
+        element={
+          <ProtectedRoute allowedRoles={['resident']}>
+            <ReportIncident />
           </ProtectedRoute>
         }
       />
