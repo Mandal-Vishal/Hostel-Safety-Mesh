@@ -24,6 +24,8 @@ import Devices from '../pages/warden/Devices'
 
 import Notifications from '../pages/resident/Notifications'
 
+import CheckIns from '../pages/warden/CheckIns'
+
 export default function AppRoutes() {
   return (
     <Routes>
@@ -139,6 +141,15 @@ export default function AppRoutes() {
         element={
           <ProtectedRoute allowedRoles={['warden']}>
             <Devices />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/warden/check-ins"
+        element={
+          <ProtectedRoute allowedRoles={['warden']}>
+            <CheckIns />
           </ProtectedRoute>
         }
       />

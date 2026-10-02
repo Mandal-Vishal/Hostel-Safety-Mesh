@@ -1,6 +1,8 @@
 import api from './api'
 import { USE_MOCK } from './config'
 
+import { mockZoneSummary, mockPendingResidents } from '../mock/pendingCheckins'
+
 // mutable mock state so we can simulate a real check-in during dev
 let mockState = {
   checkedIn: false,
@@ -38,6 +40,26 @@ export async function checkIn() {
     return { ...mockState }
   }
   const res = await api.post('/checkin')
+  return res.data
+}
+
+export async function getPendingSummary() {
+  if (USE_MOCK) {
+    await delay(300)
+    return [...mockZoneSummary]
+  }
+  const res = await api.get('/checkin/pending/summary')
+  return res.data
+}
+
+export async function getPendingResidents(zone) {
+  if (USE_MOCK) {
+    await delay(300)
+    return zone
+      ? mockPendingResidents.filter((r) => r.zone.startsWith(zone))
+      : [...mockPendingResidents]
+  }
+  const res = await api.get('/checkin/pending', { params: { zone } })
   return res.data
 }
 

@@ -1,8 +1,7 @@
 import api from './api'
 import { USE_MOCK } from './config'
-import { mockNotifications } from '../mock/notifications'
 
-let mockState = [...mockNotifications]
+let mockState = [...(await import('../mock/notifications')).mockNotifications]
 
 export async function getNotifications() {
   if (USE_MOCK) {
