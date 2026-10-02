@@ -4,18 +4,31 @@ const User = require("../models/user.model");
 const formatDateIST = require("../utils/formatDate");
 const { createAuditLog } = require("../services/audit.service");
 
+const { sanitizeIncident, sanitizeIncidents } = require("../utils/privacy");
+
 const generateIncidentId = () => {
   return `INC-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`;
 };
 
-// Format all date fields before sending API response
-const formatIncident = (incident) => {
-  const data = incident.toObject ? incident.toObject() : incident;
+/**
+ * Format an already privacy-filtered incident.
+ *
+ * IMPORTANT:
+ * Privacy filtering happens first.
+ * We never spread the raw MongoDB document here.
+ */
+const formatSafeIncident = (incident, role) => {
+  const data = sanitizeIncident(incident, role);
+
+  if (!data) {
+    return null;
+  }
 
   return {
     ...data,
 
     createdAt: formatDateIST(data.createdAt),
+
     updatedAt: formatDateIST(data.updatedAt),
 
     acknowledgedAt: formatDateIST(data.acknowledgedAt),
@@ -29,10 +42,14 @@ const formatIncident = (incident) => {
 // Resident creates SOS
 const createSOS = async (req, res) => {
   try {
-    const { currentZone } = req.body;
-
-    const location =
-      currentZone || req.user.currentZone || req.user.hostel || {};
+    /**
+     * Privacy + integrity rule:
+     *
+     * Do NOT trust currentZone sent by the client.
+     * The server uses the authenticated user's trusted
+     * location state.
+     */
+    const location = req.user.currentZone || req.user.hostel || null;
 
     const incident = await Incident.create({
       incidentId: generateIncidentId(),
@@ -75,38 +92,43 @@ const createSOS = async (req, res) => {
       },
     });
 
-    // Populate resident details for real-time warden notification
-    await incident.populate(
-      "residentId",
-      "firstName lastName email hostel currentZone",
-    );
+    /**
+     * Populate only the identity information needed by
+     * the privacy layer.
+     */
+    await incident.populate("residentId", "firstName lastName email role");
 
-    const formattedIncident = formatIncident(incident);
+    const wardenIncident = formatSafeIncident(incident, "warden");
 
-    // Socket.IO
+    const residentIncident = formatSafeIncident(incident, "resident");
+
     const io = req.app.get("io");
 
     if (io) {
-      // Notify all connected wardens
+      /**
+       * Warden gets operational representation.
+       */
       io.to("role:warden").emit("incident:new", {
-        incident: formattedIncident,
+        incident: wardenIncident,
       });
 
-      // Confirm incident creation to resident
+      /**
+       * Resident gets resident-safe representation.
+       */
       io.to(`user:${req.user._id.toString()}`).emit("incident:created", {
-        incident: formattedIncident,
+        incident: residentIncident,
       });
     }
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       message: "SOS received successfully",
-      incident: formattedIncident,
+      incident: residentIncident,
     });
   } catch (error) {
     console.error("Create SOS error:", error);
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Failed to create SOS",
     });
@@ -119,17 +141,26 @@ const getMyIncidents = async (req, res) => {
     const incidents = await Incident.find({
       residentId: req.user._id,
     })
-      .sort({ createdAt: -1 })
+      .sort({
+        createdAt: -1,
+      })
       .limit(50);
 
-    res.json({
+    return res.json({
       success: true,
-      incidents: incidents.map(formatIncident),
+      incidents: sanitizeIncidents(incidents, "resident").map((incident) => ({
+        ...incident,
+        createdAt: formatDateIST(incident.createdAt),
+        updatedAt: formatDateIST(incident.updatedAt),
+        acknowledgedAt: formatDateIST(incident.acknowledgedAt),
+        escalatedAt: formatDateIST(incident.escalatedAt),
+        resolvedAt: formatDateIST(incident.resolvedAt),
+      })),
     });
   } catch (error) {
     console.error("Get my incidents error:", error);
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Failed to fetch incidents",
     });
@@ -146,21 +177,32 @@ const getIncidents = async (req, res) => {
     }
 
     const incidents = await Incident.find(filter)
-      .populate("residentId", "firstName lastName email hostel currentZone")
+      .populate("residentId", "firstName lastName email role")
       .populate("acknowledgedBy", "firstName lastName role")
       .populate("escalatedTo", "firstName lastName role")
       .populate("resolvedBy", "firstName lastName role")
-      .sort({ createdAt: -1 })
+      .sort({
+        createdAt: -1,
+      })
       .limit(100);
 
-    res.json({
+    return res.json({
       success: true,
-      incidents: incidents.map(formatIncident),
+      incidents: sanitizeIncidents(incidents, req.user.role).map(
+        (incident) => ({
+          ...incident,
+          createdAt: formatDateIST(incident.createdAt),
+          updatedAt: formatDateIST(incident.updatedAt),
+          acknowledgedAt: formatDateIST(incident.acknowledgedAt),
+          escalatedAt: formatDateIST(incident.escalatedAt),
+          resolvedAt: formatDateIST(incident.resolvedAt),
+        }),
+      ),
     });
   } catch (error) {
     console.error("Get incidents error:", error);
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Failed to fetch incidents",
     });
@@ -173,7 +215,7 @@ const getIncidentById = async (req, res) => {
     const incident = await Incident.findOne({
       incidentId: req.params.incidentId,
     })
-      .populate("residentId", "firstName lastName email hostel currentZone")
+      .populate("residentId", "firstName lastName email role")
       .populate("acknowledgedBy", "firstName lastName role")
       .populate("escalatedTo", "firstName lastName role")
       .populate("resolvedBy", "firstName lastName role");
@@ -185,7 +227,9 @@ const getIncidentById = async (req, res) => {
       });
     }
 
-    // Resident can only access their own incidents
+    /**
+     * Resident may only access their own incidents.
+     */
     if (req.user.role === "resident") {
       if (
         !incident.residentId ||
@@ -198,14 +242,14 @@ const getIncidentById = async (req, res) => {
       }
     }
 
-    res.json({
+    return res.json({
       success: true,
-      incident: formatIncident(incident),
+      incident: formatSafeIncident(incident, req.user.role),
     });
   } catch (error) {
     console.error("Get incident error:", error);
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Failed to fetch incident",
     });
@@ -236,12 +280,13 @@ const acknowledgeIncident = async (req, res) => {
     const previousState = incident.status;
 
     incident.status = "ACKNOWLEDGED";
+
     incident.acknowledgedAt = new Date();
+
     incident.acknowledgedBy = req.user._id;
 
     await incident.save();
 
-    // Audit
     await createAuditLog({
       action: "INCIDENT_ACKNOWLEDGED",
 
@@ -264,42 +309,56 @@ const acknowledgeIncident = async (req, res) => {
       },
     });
 
-    // Get resident details for notification
-    await incident.populate(
-      "residentId",
-      "firstName lastName email hostel currentZone",
-    );
+    /**
+     * Populate only what the privacy layer needs.
+     */
+    await incident.populate("residentId", "firstName lastName email role");
 
-    const formattedIncident = formatIncident(incident);
+    const residentIncident = formatSafeIncident(incident, "resident");
+
+    const wardenIncident = formatSafeIncident(incident, "warden");
+
+    const securityIncident = formatSafeIncident(incident, "security");
 
     const io = req.app.get("io");
 
     if (io) {
-      // Notify the resident
+      /**
+       * Resident sees only their safe representation.
+       */
       if (incident.residentId) {
         io.to(`user:${incident.residentId._id.toString()}`).emit(
           "incident:acknowledged",
           {
-            incident: formattedIncident,
+            incident: residentIncident,
           },
         );
       }
 
-      // Update wardens
+      /**
+       * Warden gets operational representation.
+       */
       io.to("role:warden").emit("incident:updated", {
-        incident: formattedIncident,
+        incident: wardenIncident,
+      });
+
+      /**
+       * Security also receives only operational data.
+       */
+      io.to("role:security").emit("incident:updated", {
+        incident: securityIncident,
       });
     }
 
-    res.json({
+    return res.json({
       success: true,
       message: "Incident acknowledged",
-      incident: formattedIncident,
+      incident: wardenIncident,
     });
   } catch (error) {
     console.error("Acknowledge error:", error);
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Failed to acknowledge incident",
     });
@@ -349,15 +408,19 @@ const escalateIncident = async (req, res) => {
     const previousState = incident.status;
 
     incident.status = "ESCALATED";
+
     incident.escalatedAt = new Date();
 
-    incident.escalatedTo = securityUser?._id || null;
+    incident.escalatedTo = securityUser ? securityUser._id : null;
 
     incident.escalationReason = reason || "Incident requires escalation";
 
     await incident.save();
 
-    // Audit
+    /**
+     * Keep audit metadata operational.
+     * Do not copy resident personal information.
+     */
     await createAuditLog({
       action: "INCIDENT_ESCALATED",
 
@@ -380,49 +443,57 @@ const escalateIncident = async (req, res) => {
       },
     });
 
-    // Populate required details
-    await incident.populate(
-      "residentId",
-      "firstName lastName email hostel currentZone",
-    );
+    await incident.populate("residentId", "firstName lastName email role");
 
-    const formattedIncident = formatIncident(incident);
+    await incident.populate("escalatedTo", "firstName lastName role");
+
+    const residentIncident = formatSafeIncident(incident, "resident");
+
+    const wardenIncident = formatSafeIncident(incident, "warden");
+
+    const securityIncident = formatSafeIncident(incident, "security");
 
     const io = req.app.get("io");
 
     if (io) {
-      // Notify wardens
+      /**
+       * Warden notification.
+       */
       io.to("role:warden").emit("incident:escalated", {
-        incident: formattedIncident,
+        incident: wardenIncident,
       });
 
-      // Notify assigned security
+      /**
+       * Assigned security gets operational data.
+       */
       if (securityUser) {
         io.to(`user:${securityUser._id.toString()}`).emit("incident:assigned", {
-          incident: formattedIncident,
+          incident: securityIncident,
         });
       }
 
-      // Notify resident
+      /**
+       * Resident gets resident-safe data.
+       */
       if (incident.residentId) {
         io.to(`user:${incident.residentId._id.toString()}`).emit(
           "incident:escalated",
           {
-            incident: formattedIncident,
+            incident: residentIncident,
           },
         );
       }
     }
 
-    res.json({
+    return res.json({
       success: true,
       message: "Incident escalated",
-      incident: formattedIncident,
+      incident: wardenIncident,
     });
   } catch (error) {
     console.error("Escalation error:", error);
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Failed to escalate incident",
     });
@@ -455,14 +526,15 @@ const resolveIncident = async (req, res) => {
     const previousState = incident.status;
 
     incident.status = "RESOLVED";
+
     incident.resolvedAt = new Date();
+
     incident.resolvedBy = req.user._id;
 
     incident.resolutionNote = resolutionNote || null;
 
     await incident.save();
 
-    // Audit
     await createAuditLog({
       action: "INCIDENT_RESOLVED",
 
@@ -485,52 +557,62 @@ const resolveIncident = async (req, res) => {
       },
     });
 
-    // Populate details for notification
-    await incident.populate(
-      "residentId",
-      "firstName lastName email hostel currentZone",
-    );
+    await incident.populate("residentId", "firstName lastName email role");
 
-    const formattedIncident = formatIncident(incident);
+    await incident.populate("resolvedBy", "firstName lastName role");
+
+    await incident.populate("escalatedTo", "firstName lastName role");
+
+    const residentIncident = formatSafeIncident(incident, "resident");
+
+    const wardenIncident = formatSafeIncident(incident, "warden");
+
+    const securityIncident = formatSafeIncident(incident, "security");
 
     const io = req.app.get("io");
 
     if (io) {
-      // Notify wardens
+      /**
+       * Warden update.
+       */
       io.to("role:warden").emit("incident:resolved", {
-        incident: formattedIncident,
+        incident: wardenIncident,
       });
 
-      // Notify assigned security
+      /**
+       * Assigned security update.
+       */
       if (incident.escalatedTo) {
-        io.to(`user:${incident.escalatedTo.toString()}`).emit(
+        io.to(`user:${incident.escalatedTo._id.toString()}`).emit(
           "incident:resolved",
           {
-            incident: formattedIncident,
+            incident: securityIncident,
           },
         );
       }
 
-      // Notify resident
+      /**
+       * Resident gets only their own safe representation.
+       */
       if (incident.residentId) {
         io.to(`user:${incident.residentId._id.toString()}`).emit(
           "incident:resolved",
           {
-            incident: formattedIncident,
+            incident: residentIncident,
           },
         );
       }
     }
 
-    res.json({
+    return res.json({
       success: true,
       message: "Incident resolved",
-      incident: formattedIncident,
+      incident: req.user.role === "warden" ? wardenIncident : securityIncident,
     });
   } catch (error) {
     console.error("Resolve error:", error);
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Failed to resolve incident",
     });

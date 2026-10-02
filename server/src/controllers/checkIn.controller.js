@@ -1,18 +1,41 @@
 const CheckIn = require("../models/checkIn.model");
 const User = require("../models/user.model");
+
 const formatDateIST = require("../utils/formatDate");
 const { getCurrentNightPeriod } = require("../utils/checkinPeriod");
 
-const formatCheckIn = (checkIn) => {
-  const data = checkIn.toObject ? checkIn.toObject() : checkIn;
+const { sanitizeCheckIn, sanitizeCheckIns } = require("../utils/privacy");
+
+/**
+ * Format a privacy-filtered check-in.
+ */
+const formatSafeCheckIn = (checkIn, role) => {
+  const data = sanitizeCheckIn(checkIn, role);
+
+  if (!data) {
+    return null;
+  }
 
   return {
     ...data,
+
     scheduledAt: formatDateIST(data.scheduledAt),
+
     checkedInAt: formatDateIST(data.checkedInAt),
-    createdAt: formatDateIST(data.createdAt),
-    updatedAt: formatDateIST(data.updatedAt),
   };
+};
+
+/**
+ * Format multiple privacy-filtered check-ins.
+ */
+const formatSafeCheckIns = (checkIns, role) => {
+  return sanitizeCheckIns(checkIns, role).map((data) => ({
+    ...data,
+
+    scheduledAt: formatDateIST(data.scheduledAt),
+
+    checkedInAt: formatDateIST(data.checkedInAt),
+  }));
 };
 
 // Resident check-in
@@ -39,18 +62,28 @@ const checkIn = async (req, res) => {
       });
     }
 
-    // Always use the configured check-in start time (7:00 PM)
+    // Always use configured check-in start time.
     const scheduledAt = new Date(
-      `${period.periodKey}T${period.start}:00+05:30`
+      `${period.periodKey}T${period.start}:00+05:30`,
     );
 
     const checkedInAt = new Date();
 
+    /**
+     * Location comes from authenticated server-side state.
+     * We do not accept an arbitrary location from req.body.
+     */
+    const trustedLocation = req.user.currentZone || req.user.hostel || null;
+
     const data = {
       residentId: req.user._id,
+
       periodKey: period.periodKey,
+
       scheduledAt,
+
       checkedInAt,
+
       status: "CHECKED_IN",
 
       source: {
@@ -58,7 +91,7 @@ const checkIn = async (req, res) => {
         nodeId: null,
       },
 
-      zone: req.user.currentZone || req.user.hostel || {},
+      zone: trustedLocation || {},
     };
 
     const record = existing
@@ -68,15 +101,19 @@ const checkIn = async (req, res) => {
         })
       : await CheckIn.create(data);
 
-    res.status(200).json({
+    /**
+     * Resident receives only their own
+     * privacy-safe check-in representation.
+     */
+    return res.status(200).json({
       success: true,
       message: "Check-in successful",
-      checkIn: formatCheckIn(record),
+      checkIn: formatSafeCheckIn(record, "resident"),
     });
   } catch (error) {
     console.error("Check-in error:", error);
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Failed to check in",
     });
@@ -89,17 +126,19 @@ const getMyCheckIns = async (req, res) => {
     const checkIns = await CheckIn.find({
       residentId: req.user._id,
     })
-      .sort({ createdAt: -1 })
+      .sort({
+        createdAt: -1,
+      })
       .limit(50);
 
-    res.json({
+    return res.json({
       success: true,
-      checkIns: checkIns.map(formatCheckIn),
+      checkIns: formatSafeCheckIns(checkIns, "resident"),
     });
   } catch (error) {
     console.error("Get my check-ins error:", error);
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Failed to fetch check-ins",
     });
@@ -116,9 +155,8 @@ const generateExpectedCheckIns = async (req, res) => {
       isActive: true,
     }).select("_id");
 
-    // Scheduled time = 7:00 PM IST
     const scheduledAt = new Date(
-      `${period.periodKey}T${period.start}:00+05:30`
+      `${period.periodKey}T${period.start}:00+05:30`,
     );
 
     const operations = residents.map((resident) => ({
@@ -131,10 +169,15 @@ const generateExpectedCheckIns = async (req, res) => {
         update: {
           $setOnInsert: {
             residentId: resident._id,
+
             periodKey: period.periodKey,
+
             scheduledAt,
+
             checkedInAt: null,
+
             status: "EXPECTED",
+
             source: {
               type: "RESIDENT_APP",
               nodeId: null,
@@ -150,7 +193,7 @@ const generateExpectedCheckIns = async (req, res) => {
       await CheckIn.bulkWrite(operations);
     }
 
-    res.json({
+    return res.json({
       success: true,
       message: "Expected check-ins generated",
       count: residents.length,
@@ -160,7 +203,7 @@ const generateExpectedCheckIns = async (req, res) => {
   } catch (error) {
     console.error("Generate check-ins error:", error);
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Failed to generate expected check-ins",
     });
@@ -172,10 +215,7 @@ const evaluateMissedCheckIns = async (req, res) => {
   try {
     const period = getCurrentNightPeriod();
 
-    // 10:00 PM IST
-    const endTime = new Date(
-      `${period.periodKey}T${period.end}:00+05:30`
-    );
+    const endTime = new Date(`${period.periodKey}T${period.end}:00+05:30`);
 
     const now = new Date();
 
@@ -183,7 +223,7 @@ const evaluateMissedCheckIns = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: `Check-in period has not ended yet. It ends at ${formatDateIST(
-          endTime
+          endTime,
         )}`,
       });
     }
@@ -197,10 +237,10 @@ const evaluateMissedCheckIns = async (req, res) => {
         $set: {
           status: "MISSED",
         },
-      }
+      },
     );
 
-    res.json({
+    return res.json({
       success: true,
       message: "Missed check-ins evaluated",
       missedCount: result.modifiedCount,
@@ -208,7 +248,7 @@ const evaluateMissedCheckIns = async (req, res) => {
   } catch (error) {
     console.error("Missed check-in error:", error);
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Failed to evaluate missed check-ins",
     });
@@ -225,18 +265,20 @@ const getAllCheckIns = async (req, res) => {
     }
 
     const checkIns = await CheckIn.find(filter)
-      .populate("residentId", "firstName lastName email")
-      .sort({ createdAt: -1 })
+      .populate("residentId", "firstName lastName email role")
+      .sort({
+        createdAt: -1,
+      })
       .limit(100);
 
-    res.json({
+    return res.json({
       success: true,
-      checkIns: checkIns.map(formatCheckIn),
+      checkIns: formatSafeCheckIns(checkIns, req.user.role),
     });
   } catch (error) {
     console.error("Get all check-ins error:", error);
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Failed to fetch check-ins",
     });
