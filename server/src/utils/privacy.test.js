@@ -13,8 +13,21 @@ describe("Privacy Layer", () => {
     lastName: "Mandal",
     email: "student@example.com",
     role: "resident",
-    hostel: "Hostel-A",
-    currentZone: "Zone-1",
+
+    hostel: {
+      building: "Hostel-A",
+      floor: 2,
+      room: "204",
+      zone: "A2",
+    },
+
+    currentZone: {
+      building: "Hostel-A",
+      floor: 2,
+      zone: "A2",
+      updatedAt: new Date(),
+    },
+
     passwordHash: "SECRET_HASH",
   };
 
@@ -42,7 +55,12 @@ describe("Privacy Layer", () => {
   test("security projection can contain operational location", () => {
     const result = sanitizeUserForSecurity(user);
 
-    expect(result.currentZone).toBe("Zone-1");
+    expect(result.currentZone).toEqual({
+      building: "Hostel-A",
+      floor: 2,
+      zone: "A2",
+      updatedAt: expect.any(Date),
+    });
   });
 
   test("incident projection does not expose unnecessary fields", () => {
@@ -58,10 +76,7 @@ describe("Privacy Layer", () => {
       internalToken: "SECRET",
     };
 
-    const result = sanitizeIncident(
-      incident,
-      "security"
-    );
+    const result = sanitizeIncident(incident, "security");
 
     expect(result.internalToken).toBeUndefined();
     expect(result.secretInternalField).toBeUndefined();
@@ -70,26 +85,37 @@ describe("Privacy Layer", () => {
   test("check-in exposes zone only to operational roles", () => {
     const checkIn = {
       _id: "checkin-123",
+
       status: "CHECKED_IN",
+
       scheduledAt: new Date(),
+
       checkedInAt: new Date(),
-      source: "APP",
-      zone: "Zone-1",
+
+      source: {
+        type: "RESIDENT_APP",
+        nodeId: "node-123",
+      },
+
+      zone: {
+        building: "Hostel-A",
+        floor: 2,
+        zone: "A2",
+      },
+
       residentId: user,
     };
 
-    const residentResult = sanitizeCheckIn(
-      checkIn,
-      "resident"
-    );
+    const residentResult = sanitizeCheckIn(checkIn, "resident");
 
     expect(residentResult.zone).toBeUndefined();
 
-    const securityResult = sanitizeCheckIn(
-      checkIn,
-      "security"
-    );
+    const securityResult = sanitizeCheckIn(checkIn, "security");
 
-    expect(securityResult.zone).toBe("Zone-1");
+    expect(securityResult.zone).toEqual({
+      building: "Hostel-A",
+      floor: 2,
+      zone: "A2",
+    });
   });
 });
