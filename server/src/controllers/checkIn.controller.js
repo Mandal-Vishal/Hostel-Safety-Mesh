@@ -6,8 +6,10 @@ const { getCurrentNightPeriod } = require("../utils/checkinPeriod");
 
 const { sanitizeCheckIn, sanitizeCheckIns } = require("../utils/privacy");
 
+const ALLOWED_CHECK_IN_STATUSES = ["EXPECTED", "CHECKED_IN", "MISSED"];
+
 /**
- * Format a privacy-filtered check-in.
+ * Format one privacy-filtered check-in.
  */
 const formatSafeCheckIn = (checkIn, role) => {
   const data = sanitizeCheckIn(checkIn, role);
@@ -38,7 +40,11 @@ const formatSafeCheckIns = (checkIns, role) => {
   }));
 };
 
-// Resident check-in
+/**
+ * ---------------------------------------------------------
+ * RESIDENT CHECK-IN
+ * ---------------------------------------------------------
+ */
 const checkIn = async (req, res) => {
   try {
     const period = getCurrentNightPeriod();
@@ -46,23 +52,34 @@ const checkIn = async (req, res) => {
     if (!period.inPeriod) {
       return res.status(400).json({
         success: false,
+
         message: `Check-in is allowed between ${period.start} and ${period.end}`,
       });
     }
 
+    const residentId = req.user._id;
+
     const existing = await CheckIn.findOne({
-      residentId: req.user._id,
+      residentId,
       periodKey: period.periodKey,
     });
 
+    /**
+     * Never allow a second check-in
+     * for the same night.
+     */
     if (existing?.status === "CHECKED_IN") {
       return res.status(409).json({
         success: false,
+
         message: "You have already checked in",
       });
     }
 
-    // Always use configured check-in start time.
+    /**
+     * The scheduled time is controlled by
+     * the configured night period.
+     */
     const scheduledAt = new Date(
       `${period.periodKey}T${period.start}:00+05:30`,
     );
@@ -70,13 +87,15 @@ const checkIn = async (req, res) => {
     const checkedInAt = new Date();
 
     /**
-     * Location comes from authenticated server-side state.
-     * We do not accept an arbitrary location from req.body.
+     * SECURITY:
+     *
+     * Never trust a location supplied by
+     * the client.
      */
     const trustedLocation = req.user.currentZone || req.user.hostel || null;
 
     const data = {
-      residentId: req.user._id,
+      residentId,
 
       periodKey: period.periodKey,
 
@@ -91,23 +110,48 @@ const checkIn = async (req, res) => {
         nodeId: null,
       },
 
-      zone: trustedLocation || {},
+      zone: trustedLocation || null,
     };
 
-    const record = existing
-      ? await CheckIn.findByIdAndUpdate(existing._id, data, {
+    let record;
+
+    if (existing) {
+      record = await CheckIn.findByIdAndUpdate(
+        existing._id,
+        {
+          $set: data,
+        },
+        {
           new: true,
           runValidators: true,
-        })
-      : await CheckIn.create(data);
+        },
+      );
+    } else {
+      try {
+        record = await CheckIn.create(data);
+      } catch (error) {
+        /**
+         * Another request may have created
+         * the unique record between our find()
+         * and create().
+         */
+        if (error?.code === 11000) {
+          return res.status(409).json({
+            success: false,
 
-    /**
-     * Resident receives only their own
-     * privacy-safe check-in representation.
-     */
+            message: "You have already checked in",
+          });
+        }
+
+        throw error;
+      }
+    }
+
     return res.status(200).json({
       success: true,
+
       message: "Check-in successful",
+
       checkIn: formatSafeCheckIn(record, "resident"),
     });
   } catch (error) {
@@ -115,12 +159,17 @@ const checkIn = async (req, res) => {
 
     return res.status(500).json({
       success: false,
+
       message: "Failed to check in",
     });
   }
 };
 
-// Resident's own check-ins
+/**
+ * ---------------------------------------------------------
+ * RESIDENT CHECK-IN HISTORY
+ * ---------------------------------------------------------
+ */
 const getMyCheckIns = async (req, res) => {
   try {
     const checkIns = await CheckIn.find({
@@ -133,6 +182,7 @@ const getMyCheckIns = async (req, res) => {
 
     return res.json({
       success: true,
+
       checkIns: formatSafeCheckIns(checkIns, "resident"),
     });
   } catch (error) {
@@ -140,12 +190,17 @@ const getMyCheckIns = async (req, res) => {
 
     return res.status(500).json({
       success: false,
+
       message: "Failed to fetch check-ins",
     });
   }
 };
 
-// Generate EXPECTED check-ins for all residents
+/**
+ * ---------------------------------------------------------
+ * GENERATE EXPECTED CHECK-INS
+ * ---------------------------------------------------------
+ */
 const generateExpectedCheckIns = async (req, res) => {
   try {
     const period = getCurrentNightPeriod();
@@ -163,6 +218,7 @@ const generateExpectedCheckIns = async (req, res) => {
       updateOne: {
         filter: {
           residentId: resident._id,
+
           periodKey: period.periodKey,
         },
 
@@ -180,8 +236,11 @@ const generateExpectedCheckIns = async (req, res) => {
 
             source: {
               type: "RESIDENT_APP",
+
               nodeId: null,
             },
+
+            zone: null,
           },
         },
 
@@ -195,9 +254,13 @@ const generateExpectedCheckIns = async (req, res) => {
 
     return res.json({
       success: true,
+
       message: "Expected check-ins generated",
+
       count: residents.length,
+
       periodKey: period.periodKey,
+
       scheduledAt: formatDateIST(scheduledAt),
     });
   } catch (error) {
@@ -205,12 +268,17 @@ const generateExpectedCheckIns = async (req, res) => {
 
     return res.status(500).json({
       success: false,
+
       message: "Failed to generate expected check-ins",
     });
   }
 };
 
-// Mark uncompleted check-ins as MISSED after 10 PM
+/**
+ * ---------------------------------------------------------
+ * EVALUATE MISSED CHECK-INS
+ * ---------------------------------------------------------
+ */
 const evaluateMissedCheckIns = async (req, res) => {
   try {
     const period = getCurrentNightPeriod();
@@ -222,6 +290,7 @@ const evaluateMissedCheckIns = async (req, res) => {
     if (now < endTime) {
       return res.status(400).json({
         success: false,
+
         message: `Check-in period has not ended yet. It ends at ${formatDateIST(
           endTime,
         )}`,
@@ -231,6 +300,7 @@ const evaluateMissedCheckIns = async (req, res) => {
     const result = await CheckIn.updateMany(
       {
         periodKey: period.periodKey,
+
         status: "EXPECTED",
       },
       {
@@ -242,7 +312,9 @@ const evaluateMissedCheckIns = async (req, res) => {
 
     return res.json({
       success: true,
+
       message: "Missed check-ins evaluated",
+
       missedCount: result.modifiedCount,
     });
   } catch (error) {
@@ -250,18 +322,33 @@ const evaluateMissedCheckIns = async (req, res) => {
 
     return res.status(500).json({
       success: false,
+
       message: "Failed to evaluate missed check-ins",
     });
   }
 };
 
-// Warden / security view
+/**
+ * ---------------------------------------------------------
+ * WARDEN / SECURITY CHECK-IN VIEW
+ * ---------------------------------------------------------
+ */
 const getAllCheckIns = async (req, res) => {
   try {
     const filter = {};
 
     if (req.query.status) {
-      filter.status = req.query.status;
+      const status = String(req.query.status).toUpperCase();
+
+      if (!ALLOWED_CHECK_IN_STATUSES.includes(status)) {
+        return res.status(400).json({
+          success: false,
+
+          message: "Invalid check-in status",
+        });
+      }
+
+      filter.status = status;
     }
 
     const checkIns = await CheckIn.find(filter)
@@ -273,6 +360,7 @@ const getAllCheckIns = async (req, res) => {
 
     return res.json({
       success: true,
+
       checkIns: formatSafeCheckIns(checkIns, req.user.role),
     });
   } catch (error) {
@@ -280,6 +368,7 @@ const getAllCheckIns = async (req, res) => {
 
     return res.status(500).json({
       success: false,
+
       message: "Failed to fetch check-ins",
     });
   }

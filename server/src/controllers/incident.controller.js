@@ -10,12 +10,10 @@ const generateIncidentId = () => {
   return `INC-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`;
 };
 
+const MAX_REASON_LENGTH = 500;
+
 /**
  * Format an already privacy-filtered incident.
- *
- * IMPORTANT:
- * Privacy filtering happens first.
- * We never spread the raw MongoDB document here.
  */
 const formatSafeIncident = (incident, role) => {
   const data = sanitizeIncident(incident, role);
@@ -39,15 +37,38 @@ const formatSafeIncident = (incident, role) => {
   };
 };
 
-// Resident creates SOS
+/**
+ * Normalize optional text input.
+ */
+const normalizeOptionalText = (value) => {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  const normalized = String(value).trim();
+
+  if (!normalized) {
+    return null;
+  }
+
+  return normalized.slice(0, MAX_REASON_LENGTH);
+};
+
+/**
+ * ---------------------------------------------------------
+ * RESIDENT CREATES SOS
+ * ---------------------------------------------------------
+ */
 const createSOS = async (req, res) => {
   try {
     /**
-     * Privacy + integrity rule:
+     * SECURITY:
      *
-     * Do NOT trust currentZone sent by the client.
-     * The server uses the authenticated user's trusted
-     * location state.
+     * Never trust a location supplied by
+     * req.body.
+     *
+     * The authenticated server-side user
+     * state is authoritative.
      */
     const location = req.user.currentZone || req.user.hostel || null;
 
@@ -58,7 +79,9 @@ const createSOS = async (req, res) => {
 
       source: {
         type: "RESIDENT_APP",
+
         userId: req.user._id,
+
         nodeId: null,
       },
 
@@ -69,22 +92,25 @@ const createSOS = async (req, res) => {
       status: "PENDING",
     });
 
-    // Audit: SOS created
     await createAuditLog({
       action: "SOS_CREATED",
 
       actor: {
         type: "USER",
+
         userId: req.user._id,
+
         role: req.user.role,
       },
 
       entity: {
         type: "INCIDENT",
+
         entityId: incident._id,
       },
 
       previousState: null,
+
       newState: "PENDING",
 
       metadata: {
@@ -92,10 +118,6 @@ const createSOS = async (req, res) => {
       },
     });
 
-    /**
-     * Populate only the identity information needed by
-     * the privacy layer.
-     */
     await incident.populate("residentId", "firstName lastName email role");
 
     const wardenIncident = formatSafeIncident(incident, "warden");
@@ -105,16 +127,10 @@ const createSOS = async (req, res) => {
     const io = req.app.get("io");
 
     if (io) {
-      /**
-       * Warden gets operational representation.
-       */
       io.to("role:warden").emit("incident:new", {
         incident: wardenIncident,
       });
 
-      /**
-       * Resident gets resident-safe representation.
-       */
       io.to(`user:${req.user._id.toString()}`).emit("incident:created", {
         incident: residentIncident,
       });
@@ -122,7 +138,9 @@ const createSOS = async (req, res) => {
 
     return res.status(201).json({
       success: true,
+
       message: "SOS received successfully",
+
       incident: residentIncident,
     });
   } catch (error) {
@@ -130,12 +148,17 @@ const createSOS = async (req, res) => {
 
     return res.status(500).json({
       success: false,
+
       message: "Failed to create SOS",
     });
   }
 };
 
-// Resident sees own incidents
+/**
+ * ---------------------------------------------------------
+ * RESIDENT INCIDENTS
+ * ---------------------------------------------------------
+ */
 const getMyIncidents = async (req, res) => {
   try {
     const incidents = await Incident.find({
@@ -148,12 +171,18 @@ const getMyIncidents = async (req, res) => {
 
     return res.json({
       success: true,
+
       incidents: sanitizeIncidents(incidents, "resident").map((incident) => ({
         ...incident,
+
         createdAt: formatDateIST(incident.createdAt),
+
         updatedAt: formatDateIST(incident.updatedAt),
+
         acknowledgedAt: formatDateIST(incident.acknowledgedAt),
+
         escalatedAt: formatDateIST(incident.escalatedAt),
+
         resolvedAt: formatDateIST(incident.resolvedAt),
       })),
     });
@@ -162,18 +191,40 @@ const getMyIncidents = async (req, res) => {
 
     return res.status(500).json({
       success: false,
+
       message: "Failed to fetch incidents",
     });
   }
 };
 
-// Warden / Security view incidents
+/**
+ * ---------------------------------------------------------
+ * WARDEN / SECURITY INCIDENT VIEW
+ * ---------------------------------------------------------
+ */
 const getIncidents = async (req, res) => {
   try {
     const filter = {};
 
     if (req.query.status) {
-      filter.status = req.query.status;
+      const status = String(req.query.status).toUpperCase();
+
+      const allowedStatuses = [
+        "PENDING",
+        "ACKNOWLEDGED",
+        "ESCALATED",
+        "RESOLVED",
+      ];
+
+      if (!allowedStatuses.includes(status)) {
+        return res.status(400).json({
+          success: false,
+
+          message: "Invalid incident status",
+        });
+      }
+
+      filter.status = status;
     }
 
     const incidents = await Incident.find(filter)
@@ -188,13 +239,19 @@ const getIncidents = async (req, res) => {
 
     return res.json({
       success: true,
+
       incidents: sanitizeIncidents(incidents, req.user.role).map(
         (incident) => ({
           ...incident,
+
           createdAt: formatDateIST(incident.createdAt),
+
           updatedAt: formatDateIST(incident.updatedAt),
+
           acknowledgedAt: formatDateIST(incident.acknowledgedAt),
+
           escalatedAt: formatDateIST(incident.escalatedAt),
+
           resolvedAt: formatDateIST(incident.resolvedAt),
         }),
       ),
@@ -204,12 +261,17 @@ const getIncidents = async (req, res) => {
 
     return res.status(500).json({
       success: false,
+
       message: "Failed to fetch incidents",
     });
   }
 };
 
-// Get one incident
+/**
+ * ---------------------------------------------------------
+ * GET ONE INCIDENT
+ * ---------------------------------------------------------
+ */
 const getIncidentById = async (req, res) => {
   try {
     const incident = await Incident.findOne({
@@ -223,12 +285,14 @@ const getIncidentById = async (req, res) => {
     if (!incident) {
       return res.status(404).json({
         success: false,
+
         message: "Incident not found",
       });
     }
 
     /**
-     * Resident may only access their own incidents.
+     * Residents may only access their
+     * own incidents.
      */
     if (req.user.role === "resident") {
       if (
@@ -237,6 +301,7 @@ const getIncidentById = async (req, res) => {
       ) {
         return res.status(403).json({
           success: false,
+
           message: "Access denied",
         });
       }
@@ -244,6 +309,7 @@ const getIncidentById = async (req, res) => {
 
     return res.json({
       success: true,
+
       incident: formatSafeIncident(incident, req.user.role),
     });
   } catch (error) {
@@ -251,12 +317,21 @@ const getIncidentById = async (req, res) => {
 
     return res.status(500).json({
       success: false,
+
       message: "Failed to fetch incident",
     });
   }
 };
 
-// Warden acknowledges incident
+/**
+ * ---------------------------------------------------------
+ * ACKNOWLEDGE INCIDENT
+ * ---------------------------------------------------------
+ *
+ * Valid transition:
+ *
+ * PENDING → ACKNOWLEDGED
+ */
 const acknowledgeIncident = async (req, res) => {
   try {
     const incident = await Incident.findOne({
@@ -266,13 +341,15 @@ const acknowledgeIncident = async (req, res) => {
     if (!incident) {
       return res.status(404).json({
         success: false,
+
         message: "Incident not found",
       });
     }
 
-    if (!["PENDING", "ESCALATED"].includes(incident.status)) {
+    if (incident.status !== "PENDING") {
       return res.status(400).json({
         success: false,
+
         message: `Cannot acknowledge incident in ${incident.status} state`,
       });
     }
@@ -292,16 +369,20 @@ const acknowledgeIncident = async (req, res) => {
 
       actor: {
         type: "USER",
+
         userId: req.user._id,
+
         role: req.user.role,
       },
 
       entity: {
         type: "INCIDENT",
+
         entityId: incident._id,
       },
 
       previousState,
+
       newState: "ACKNOWLEDGED",
 
       metadata: {
@@ -309,9 +390,6 @@ const acknowledgeIncident = async (req, res) => {
       },
     });
 
-    /**
-     * Populate only what the privacy layer needs.
-     */
     await incident.populate("residentId", "firstName lastName email role");
 
     const residentIncident = formatSafeIncident(incident, "resident");
@@ -323,9 +401,6 @@ const acknowledgeIncident = async (req, res) => {
     const io = req.app.get("io");
 
     if (io) {
-      /**
-       * Resident sees only their safe representation.
-       */
       if (incident.residentId) {
         io.to(`user:${incident.residentId._id.toString()}`).emit(
           "incident:acknowledged",
@@ -335,16 +410,10 @@ const acknowledgeIncident = async (req, res) => {
         );
       }
 
-      /**
-       * Warden gets operational representation.
-       */
       io.to("role:warden").emit("incident:updated", {
         incident: wardenIncident,
       });
 
-      /**
-       * Security also receives only operational data.
-       */
       io.to("role:security").emit("incident:updated", {
         incident: securityIncident,
       });
@@ -352,7 +421,9 @@ const acknowledgeIncident = async (req, res) => {
 
     return res.json({
       success: true,
+
       message: "Incident acknowledged",
+
       incident: wardenIncident,
     });
   } catch (error) {
@@ -360,12 +431,21 @@ const acknowledgeIncident = async (req, res) => {
 
     return res.status(500).json({
       success: false,
+
       message: "Failed to acknowledge incident",
     });
   }
 };
 
-// Warden escalates incident
+/**
+ * ---------------------------------------------------------
+ * ESCALATE INCIDENT
+ * ---------------------------------------------------------
+ *
+ * Valid transition:
+ *
+ * PENDING → ESCALATED
+ */
 const escalateIncident = async (req, res) => {
   try {
     const { reason, securityUserId } = req.body;
@@ -377,6 +457,7 @@ const escalateIncident = async (req, res) => {
     if (!incident) {
       return res.status(404).json({
         success: false,
+
         message: "Incident not found",
       });
     }
@@ -384,22 +465,28 @@ const escalateIncident = async (req, res) => {
     if (incident.status !== "PENDING") {
       return res.status(400).json({
         success: false,
+
         message: "Only pending incidents can be escalated",
       });
     }
+
+    const normalizedReason = normalizeOptionalText(reason);
 
     let securityUser = null;
 
     if (securityUserId) {
       securityUser = await User.findOne({
         _id: securityUserId,
+
         role: "security",
+
         isActive: true,
       });
 
       if (!securityUser) {
         return res.status(400).json({
           success: false,
+
           message: "Invalid security user",
         });
       }
@@ -413,29 +500,30 @@ const escalateIncident = async (req, res) => {
 
     incident.escalatedTo = securityUser ? securityUser._id : null;
 
-    incident.escalationReason = reason || "Incident requires escalation";
+    incident.escalationReason =
+      normalizedReason || "Incident requires escalation";
 
     await incident.save();
 
-    /**
-     * Keep audit metadata operational.
-     * Do not copy resident personal information.
-     */
     await createAuditLog({
       action: "INCIDENT_ESCALATED",
 
       actor: {
         type: "USER",
+
         userId: req.user._id,
+
         role: req.user.role,
       },
 
       entity: {
         type: "INCIDENT",
+
         entityId: incident._id,
       },
 
       previousState,
+
       newState: "ESCALATED",
 
       metadata: {
@@ -456,25 +544,16 @@ const escalateIncident = async (req, res) => {
     const io = req.app.get("io");
 
     if (io) {
-      /**
-       * Warden notification.
-       */
       io.to("role:warden").emit("incident:escalated", {
         incident: wardenIncident,
       });
 
-      /**
-       * Assigned security gets operational data.
-       */
       if (securityUser) {
         io.to(`user:${securityUser._id.toString()}`).emit("incident:assigned", {
           incident: securityIncident,
         });
       }
 
-      /**
-       * Resident gets resident-safe data.
-       */
       if (incident.residentId) {
         io.to(`user:${incident.residentId._id.toString()}`).emit(
           "incident:escalated",
@@ -487,7 +566,9 @@ const escalateIncident = async (req, res) => {
 
     return res.json({
       success: true,
+
       message: "Incident escalated",
+
       incident: wardenIncident,
     });
   } catch (error) {
@@ -495,12 +576,22 @@ const escalateIncident = async (req, res) => {
 
     return res.status(500).json({
       success: false,
+
       message: "Failed to escalate incident",
     });
   }
 };
 
-// Warden / Security resolves incident
+/**
+ * ---------------------------------------------------------
+ * RESOLVE INCIDENT
+ * ---------------------------------------------------------
+ *
+ * Valid transitions:
+ *
+ * ACKNOWLEDGED → RESOLVED
+ * ESCALATED    → RESOLVED
+ */
 const resolveIncident = async (req, res) => {
   try {
     const { resolutionNote } = req.body;
@@ -512,6 +603,7 @@ const resolveIncident = async (req, res) => {
     if (!incident) {
       return res.status(404).json({
         success: false,
+
         message: "Incident not found",
       });
     }
@@ -519,9 +611,12 @@ const resolveIncident = async (req, res) => {
     if (!["ACKNOWLEDGED", "ESCALATED"].includes(incident.status)) {
       return res.status(400).json({
         success: false,
+
         message: `Cannot resolve incident in ${incident.status} state`,
       });
     }
+
+    const normalizedNote = normalizeOptionalText(resolutionNote);
 
     const previousState = incident.status;
 
@@ -531,7 +626,7 @@ const resolveIncident = async (req, res) => {
 
     incident.resolvedBy = req.user._id;
 
-    incident.resolutionNote = resolutionNote || null;
+    incident.resolutionNote = normalizedNote;
 
     await incident.save();
 
@@ -540,20 +635,24 @@ const resolveIncident = async (req, res) => {
 
       actor: {
         type: "USER",
+
         userId: req.user._id,
+
         role: req.user.role,
       },
 
       entity: {
         type: "INCIDENT",
+
         entityId: incident._id,
       },
 
       previousState,
+
       newState: "RESOLVED",
 
       metadata: {
-        reason: resolutionNote || null,
+        reason: normalizedNote,
       },
     });
 
@@ -572,16 +671,10 @@ const resolveIncident = async (req, res) => {
     const io = req.app.get("io");
 
     if (io) {
-      /**
-       * Warden update.
-       */
       io.to("role:warden").emit("incident:resolved", {
         incident: wardenIncident,
       });
 
-      /**
-       * Assigned security update.
-       */
       if (incident.escalatedTo) {
         io.to(`user:${incident.escalatedTo._id.toString()}`).emit(
           "incident:resolved",
@@ -591,9 +684,6 @@ const resolveIncident = async (req, res) => {
         );
       }
 
-      /**
-       * Resident gets only their own safe representation.
-       */
       if (incident.residentId) {
         io.to(`user:${incident.residentId._id.toString()}`).emit(
           "incident:resolved",
@@ -606,7 +696,9 @@ const resolveIncident = async (req, res) => {
 
     return res.json({
       success: true,
+
       message: "Incident resolved",
+
       incident: req.user.role === "warden" ? wardenIncident : securityIncident,
     });
   } catch (error) {
@@ -614,6 +706,7 @@ const resolveIncident = async (req, res) => {
 
     return res.status(500).json({
       success: false,
+
       message: "Failed to resolve incident",
     });
   }
