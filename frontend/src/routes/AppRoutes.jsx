@@ -26,6 +26,8 @@ import Notifications from '../pages/resident/Notifications'
 
 import CheckIns from '../pages/warden/CheckIns'
 
+import Analytics from '../pages/warden/Analytics'
+
 export default function AppRoutes() {
   return (
     <Routes>
@@ -150,6 +152,15 @@ export default function AppRoutes() {
         element={
           <ProtectedRoute allowedRoles={['warden']}>
             <CheckIns />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/warden/analytics"
+        element={
+          <ProtectedRoute allowedRoles={['warden']}>
+            <Analytics />
           </ProtectedRoute>
         }
       />
