@@ -2,6 +2,7 @@ const Incident = require("../models/incident.model");
 const User = require("../models/user.model");
 const { createAuditLog } = require("./audit.service");
 const formatDateIST = require("../utils/formatDate");
+const { sanitizeIncident } = require("../utils/privacy");
 
 const ESCALATION_TIMEOUT_MS = Number(
   process.env.SOS_ESCALATION_TIMEOUT_MS || 120000
@@ -13,9 +14,33 @@ const ESCALATION_INTERVAL_MS = Number(
 
 let escalationInterval = null;
 
+/*
+ * Apply the project's IST response formatting after
+ * privacy filtering.
+ */
+const formatSanitizedIncident = (incident, role) => {
+  const data = sanitizeIncident(incident, role);
+
+  if (!data) {
+    return null;
+  }
+
+  return {
+    ...data,
+
+    createdAt: formatDateIST(data.createdAt),
+    updatedAt: formatDateIST(data.updatedAt),
+    acknowledgedAt: formatDateIST(data.acknowledgedAt),
+    escalatedAt: formatDateIST(data.escalatedAt),
+    resolvedAt: formatDateIST(data.resolvedAt),
+  };
+};
+
 const escalatePendingIncidents = async (io) => {
   try {
-    const cutoffTime = new Date(Date.now() - ESCALATION_TIMEOUT_MS);
+    const cutoffTime = new Date(
+      Date.now() - ESCALATION_TIMEOUT_MS
+    );
 
     const pendingIncidents = await Incident.find({
       status: "PENDING",
@@ -30,11 +55,13 @@ const escalatePendingIncidents = async (io) => {
       const securityUser = await User.findOne({
         role: "security",
         isActive: true,
-      }).select("_id firstName lastName email");
+      }).select(
+        "_id firstName lastName email"
+      );
 
       /*
-       * Even if no security user exists, we still escalate the incident.
-       * Socket.IO will notify the role:security room when available.
+       * Escalate only while the incident is still PENDING.
+       * This prevents duplicate escalation by concurrent checks.
        */
       const updatedIncident = await Incident.findOneAndUpdate(
         {
@@ -45,7 +72,9 @@ const escalatePendingIncidents = async (io) => {
           $set: {
             status: "ESCALATED",
             escalatedAt: new Date(),
-            escalatedTo: securityUser ? securityUser._id : null,
+            escalatedTo: securityUser
+              ? securityUser._id
+              : null,
             escalationReason:
               "Automatic escalation due to acknowledgement timeout",
           },
@@ -53,96 +82,111 @@ const escalatePendingIncidents = async (io) => {
         {
           returnDocument: "after",
         }
-      ).populate(
-        "residentId",
-        "firstName lastName email hostel currentZone"
-      );
+      )
+        .populate(
+          "residentId",
+          "firstName lastName email role"
+        )
+        .populate(
+          "escalatedTo",
+          "firstName lastName role"
+        );
 
-      // Another process may have already handled this incident
+      // Another process may have already handled it
       if (!updatedIncident) {
         continue;
       }
 
+      // Audit automatic escalation
       await createAuditLog({
         action: "INCIDENT_ESCALATED",
+
         actor: {
           type: "SYSTEM",
           userId: null,
           role: "SYSTEM",
         },
+
         entity: {
           type: "INCIDENT",
-          entityId: updatedIncident._id.toString(),
+          entityId: updatedIncident._id,
         },
+
         previousState: "PENDING",
         newState: "ESCALATED",
+
         metadata: {
-          reason: "Automatic escalation due to acknowledgement timeout",
+          reason:
+            "Automatic escalation due to acknowledgement timeout",
+
           escalatedTo: securityUser
             ? securityUser._id.toString()
             : null,
+
           escalatedToRole: "SECURITY",
         },
       });
 
-      const incidentPayload = {
-        incidentId: updatedIncident.incidentId,
-        type: updatedIncident.type,
-        status: updatedIncident.status,
-
-        source: updatedIncident.source,
-
-        location: updatedIncident.location,
-
-        resident: updatedIncident.residentId
-          ? {
-              id: updatedIncident.residentId._id,
-              name: `${updatedIncident.residentId.firstName} ${updatedIncident.residentId.lastName}`,
-            }
-          : null,
-
-        createdAt: formatDateIST(updatedIncident.createdAt),
-        escalatedAt: formatDateIST(updatedIncident.escalatedAt),
-
-        escalatedTo: securityUser
-          ? {
-              id: securityUser._id,
-              name: `${securityUser.firstName} ${securityUser.lastName}`,
-              email: securityUser.email,
-            }
-          : null,
-
-        escalatedToRole: "SECURITY",
-
-        escalationReason: updatedIncident.escalationReason,
-      };
-
-      // Notify all wardens
-      io.to("role:warden").emit(
-        "incident:escalated",
-        incidentPayload
+      /*
+       * Create separate privacy-filtered payloads.
+       */
+      const wardenIncident = formatSanitizedIncident(
+        updatedIncident,
+        "warden"
       );
 
-      // Notify all security users
-      io.to("role:security").emit(
-        "incident:escalated",
-        incidentPayload
+      const securityIncident = formatSanitizedIncident(
+        updatedIncident,
+        "security"
       );
 
-      // Notify resident
-      if (updatedIncident.residentId?._id) {
-        io.to(
-          `user:${updatedIncident.residentId._id.toString()}`
-        ).emit(
+      const residentIncident = formatSanitizedIncident(
+        updatedIncident,
+        "resident"
+      );
+
+      /*
+       * Socket.IO notifications
+       *
+       * Each role receives only the fields allowed
+       * by the privacy layer.
+       */
+      if (io) {
+        // Warden
+        io.to("role:warden").emit(
           "incident:escalated",
-          incidentPayload
+          {
+            incident: wardenIncident,
+          }
         );
+
+        // Security
+        io.to("role:security").emit(
+          "incident:escalated",
+          {
+            incident: securityIncident,
+          }
+        );
+
+        // Resident
+        if (updatedIncident.residentId?._id) {
+          io.to(
+            `user:${updatedIncident.residentId._id.toString()}`
+          ).emit(
+            "incident:escalated",
+            {
+              incident: residentIncident,
+            }
+          );
+        }
       }
 
       console.log(
-        `Incident ${updatedIncident.incidentId} automatically escalated at ${formatDateIST(
-          updatedIncident.escalatedAt
-        )}`
+        `Incident ${
+          updatedIncident.incidentId
+        } automatically escalated at ${
+          formatDateIST(updatedIncident.escalatedAt)
+        }`
       );
     }
   } catch (error) {
