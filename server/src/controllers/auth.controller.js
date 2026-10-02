@@ -12,7 +12,7 @@ const generateToken = (user) => {
     {
       expiresIn: process.env.JWT_EXPIRES_IN || "1d",
     }
-  );
+  );  
 };
 
 const register = async (req, res) => {

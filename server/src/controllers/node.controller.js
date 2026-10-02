@@ -1,22 +1,49 @@
 const Node = require("../models/node.model");
+
 const formatDateIST = require("../utils/formatDate");
 
-const formatNode = (node) => {
-  const data = node.toObject();
+const { sanitizeNode, sanitizeNodes } = require("../utils/privacy");
+
+const formatSafeNode = (node, role) => {
+  const data = sanitizeNode(node, role);
+
+  if (!data) {
+    return null;
+  }
 
   return {
     ...data,
 
     createdAt: formatDateIST(data.createdAt),
+
     updatedAt: formatDateIST(data.updatedAt),
 
-    health: {
-      ...data.health,
-      lastHeartbeatAt: formatDateIST(
-        data.health?.lastHeartbeatAt
-      ),
-    },
+    health: data.health
+      ? {
+          ...data.health,
+
+          lastHeartbeatAt: formatDateIST(data.health.lastHeartbeatAt),
+        }
+      : null,
   };
+};
+
+const formatSafeNodes = (nodes, role) => {
+  return sanitizeNodes(nodes, role).map((node) => ({
+    ...node,
+
+    createdAt: formatDateIST(node.createdAt),
+
+    updatedAt: formatDateIST(node.updatedAt),
+
+    health: node.health
+      ? {
+          ...node.health,
+
+          lastHeartbeatAt: formatDateIST(node.health.lastHeartbeatAt),
+        }
+      : null,
+  }));
 };
 
 const getNodes = async (req, res) => {
@@ -28,14 +55,15 @@ const getNodes = async (req, res) => {
       nodeId: 1,
     });
 
-    res.json({
+    return res.json({
       success: true,
-      nodes: nodes.map(formatNode),
+
+      nodes: formatSafeNodes(nodes, req.user.role),
     });
   } catch (error) {
     console.error("Get nodes error:", error);
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Failed to fetch nodes",
     });
@@ -55,12 +83,15 @@ const getNodeById = async (req, res) => {
       });
     }
 
-    res.json({
+    return res.json({
       success: true,
-      node: formatNode(node),
+
+      node: formatSafeNode(node, req.user.role),
     });
   } catch (error) {
-    res.status(500).json({
+    console.error("Get node error:", error);
+
+    return res.status(500).json({
       success: false,
       message: "Failed to fetch node",
     });
