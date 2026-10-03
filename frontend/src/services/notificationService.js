@@ -1,27 +1,34 @@
-import api from './api'
-import { USE_MOCK } from './config'
+import { mockNotifications } from "../mock/notifications";
+import { USE_MOCK } from "./config";
 
-let mockState = [...(await import('../mock/notifications')).mockNotifications]
+let mockState = [...mockNotifications];
 
 export async function getNotifications() {
   if (USE_MOCK) {
-    await delay(300)
-    return [...mockState]
+    await delay(300);
+    return [...mockState];
   }
-  const res = await api.get('/notifications')
-  return res.data
+
+  // The current backend does not persist notifications yet.
+  // Return an empty list instead of calling a non-existent API.
+  return [];
 }
 
 export async function markAsRead(id) {
   if (USE_MOCK) {
-    await delay(200)
-    mockState = mockState.map((n) => (n.id === id ? { ...n, read: true } : n))
-    return mockState
+    await delay(200);
+
+    mockState = mockState.map((notification) =>
+      notification.id === id ? { ...notification, read: true } : notification,
+    );
+
+    return [...mockState];
   }
-  const res = await api.patch(`/notifications/${id}/read`)
-  return res.data
+
+  // No notification persistence endpoint exists in the current backend.
+  return [];
 }
 
 function delay(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms))
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
