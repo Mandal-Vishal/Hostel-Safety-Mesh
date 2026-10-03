@@ -1,67 +1,65 @@
-import api from './api'
-import { USE_MOCK } from './config'
-import { mockUser } from '../mock/user'
+import api from "./api";
+import { USE_MOCK } from "./config";
+import { mockAuditLogs } from "../mock/auditLogs";
 
-export async function login(email, password) {
-  if (USE_MOCK) {
-    await delay(500)
+function normalizeAuditLog(log) {
+  return {
+    ...log,
 
-    if (!email || !password) {
-      throw new Error('Email and password are required')
-    }
+    id: log.id,
 
-    localStorage.setItem('token', 'mock-token')
-    return mockUser
-  }
+    actor: log.actor?.name || log.actor?.role || "SYSTEM",
 
-  const res = await api.post('/auth/login', {
-    email,
-    password,
-  })
+    actorRole: log.actor?.role || "SYSTEM",
 
-  const { token, user } = res.data
+    action: log.action || "UNKNOWN",
 
-  if (!token || !user) {
-    throw new Error('Invalid login response')
-  }
+    resource:
+      log.entity?.type && log.entity?.entityId
+        ? `${log.entity.type} • ${log.entity.entityId}`
+        : log.entity?.type || "Unknown",
 
-  localStorage.setItem('token', token)
+    previousState: log.previousState || null,
 
-  return user
+    newState: log.newState || null,
+
+    timestamp: log.timestamp,
+
+    hash: log.hash || null,
+
+    previousHash: log.previousHash || null,
+
+    signature: log.signature || null,
+  };
 }
 
-export async function logout() {
-  localStorage.removeItem('token')
+export async function getAuditLogs() {
+  if (USE_MOCK) {
+    await delay(300);
+    return [...mockAuditLogs].map(normalizeAuditLog);
+  }
+
+  const res = await api.get("/audits");
+
+  return (res.data.logs || []).map(normalizeAuditLog);
 }
 
-export async function getCurrentUser() {
+export async function verifyAuditChain() {
   if (USE_MOCK) {
-    await delay(300)
+    await delay(300);
 
-    const token = localStorage.getItem('token')
-
-    if (!token) {
-      throw new Error('Not authenticated')
-    }
-
-    return mockUser
+    return {
+      valid: true,
+      totalLogs: mockAuditLogs.length,
+      verifiedAt: new Date().toISOString(),
+    };
   }
 
-  const token = localStorage.getItem('token')
+  const res = await api.get("/audits/verify");
 
-  if (!token) {
-    throw new Error('Not authenticated')
-  }
-
-  const res = await api.get('/users/me')
-
-  if (!res.data?.user) {
-    throw new Error('Invalid current-user response')
-  }
-
-  return res.data.user
+  return res.data.verification;
 }
 
 function delay(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms))
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
