@@ -28,6 +28,9 @@ import CheckIns from '../pages/warden/CheckIns'
 
 import Analytics from '../pages/warden/Analytics'
 
+import AuditLogs from '../pages/admin/AuditLogs'
+import AuditLogDetail from '../pages/admin/AuditLogDetail'
+
 export default function AppRoutes() {
   return (
     <Routes>
@@ -179,6 +182,23 @@ export default function AppRoutes() {
         element={
           <ProtectedRoute allowedRoles={['admin']}>
             <AdminDashboard />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/admin/audit-logs"
+        element={
+          <ProtectedRoute allowedRoles={['admin']}>
+            <AuditLogs />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/audit-logs/:id"
+        element={
+          <ProtectedRoute allowedRoles={['admin']}>
+            <AuditLogDetail />
           </ProtectedRoute>
         }
       />
