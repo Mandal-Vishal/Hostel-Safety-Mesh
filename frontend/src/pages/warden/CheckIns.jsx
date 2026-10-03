@@ -8,6 +8,7 @@ import {
   getPendingSummary,
   getPendingResidents,
 } from "../../services/checkInService";
+import { useSocketEvent } from "../../hooks/useSocket";
 
 const sidebarLinks = [
   { to: "/warden/dashboard", label: "Dashboard" },
@@ -29,17 +30,49 @@ export default function CheckIns() {
     load();
   }, []);
 
-  function load() {
+  /**
+   * ---------------------------------------------------------
+   * REAL-TIME CHECK-IN UPDATE
+   * ---------------------------------------------------------
+   *
+   * When a resident checks in, the backend emits:
+   *
+   *   checkin:updated
+   *
+   * The Warden page refreshes its summary automatically.
+   */
+  useSocketEvent("checkin:updated", async () => {
+    try {
+      await load();
+
+      /**
+       * If a zone is currently expanded, refresh that
+       * zone's pending resident list too.
+       */
+      if (expandedZone) {
+        const residents = await getPendingResidents(expandedZone);
+
+        setPendingList(residents);
+      }
+    } catch (err) {
+      console.error("Failed to refresh check-ins after live update:", err);
+    }
+  });
+
+  async function load() {
     setLoading(true);
     setError(false);
 
-    getPendingSummary()
-      .then(setSummary)
-      .catch((err) => {
-        console.error("Failed to load Warden check-ins:", err);
-        setError(true);
-      })
-      .finally(() => setLoading(false));
+    try {
+      const data = await getPendingSummary();
+      setSummary(data);
+    } catch (err) {
+      console.error("Failed to load Warden check-ins:", err);
+
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function toggleZone(zone) {
@@ -51,10 +84,12 @@ export default function CheckIns() {
 
     try {
       const residents = await getPendingResidents(zone);
+
       setPendingList(residents);
       setExpandedZone(zone);
     } catch (err) {
       console.error("Failed to load pending residents:", err);
+
       setError(true);
     }
   }
