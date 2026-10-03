@@ -1,94 +1,100 @@
 import api from "./api";
 import { USE_MOCK } from "./config";
-import { mockAuditLogs } from "../mock/auditLogs";
+import { mockUser } from "../mock/user";
 
-function normalizeAuditLog(log) {
-  return {
-    ...log,
-
-    id: log.id,
-
-    actor:
-      log.actor?.name ||
-      log.actor?.role ||
-      "SYSTEM",
-
-    actorRole:
-      log.actor?.role ||
-      "SYSTEM",
-
-    action:
-      log.action ||
-      "UNKNOWN",
-
-    resource:
-      log.entity?.type && log.entity?.entityId
-        ? `${log.entity.type} • ${log.entity.entityId}`
-        : log.entity?.type ||
-          "Unknown",
-
-    previousState:
-      log.previousState ||
-      null,
-
-    newState:
-      log.newState ||
-      null,
-
-    timestamp:
-      log.timestamp ||
-      null,
-
-    hash:
-      log.hash ||
-      null,
-
-    previousHash:
-      log.previousHash ||
-      null,
-
-    signature:
-      log.signature ||
-      null,
-  };
-}
-
-export async function getAuditLogs() {
-  if (USE_MOCK) {
-    await delay(300);
-
-    return [...mockAuditLogs].map(
-      normalizeAuditLog,
-    );
-  }
-
-  const res = await api.get("/audits");
-
-  return (res.data.logs || []).map(
-    normalizeAuditLog,
-  );
-}
-
-export async function verifyAuditChain() {
+export async function login(email, password) {
   if (USE_MOCK) {
     await delay(300);
 
     return {
-      valid: true,
-      totalLogs: mockAuditLogs.length,
-      verifiedAt: new Date().toISOString(),
+      ...mockUser,
     };
   }
 
-  const res = await api.get(
-    "/audits/verify",
-  );
+  try {
+    const res = await api.post("/auth/login", {
+      email,
+      password,
+    });
 
-  return res.data.verification;
+    const { token, user } = res.data;
+
+    if (!token || !user) {
+      throw new Error("Invalid login response");
+    }
+
+    localStorage.setItem("token", token);
+
+    return user;
+  } catch (error) {
+    const message =
+      error.response?.data?.message ||
+      "Login failed. Please check your credentials.";
+
+    throw new Error(message);
+  }
+}
+
+export async function register(userData) {
+  if (USE_MOCK) {
+    await delay(300);
+
+    return {
+      ...mockUser,
+    };
+  }
+
+  try {
+    const res = await api.post("/auth/register", userData);
+
+    const { token, user } = res.data;
+
+    if (token) {
+      localStorage.setItem("token", token);
+    }
+
+    return user;
+  } catch (error) {
+    const message = error.response?.data?.message || "Registration failed.";
+
+    throw new Error(message);
+  }
+}
+
+export async function getCurrentUser() {
+  if (USE_MOCK) {
+    await delay(200);
+
+    return {
+      ...mockUser,
+    };
+  }
+
+  const token = localStorage.getItem("token");
+
+  if (!token) {
+    return null;
+  }
+
+  try {
+    const res = await api.get("/users/me");
+
+    return res.data.user || null;
+  } catch (error) {
+    if (error.response?.status === 401 || error.response?.status === 403) {
+      localStorage.removeItem("token");
+      return null;
+    }
+
+    throw error;
+  }
+}
+
+export async function logout() {
+  localStorage.removeItem("token");
+  return true;
 }
 
 function delay(ms) {
-  return new Promise((resolve) =>
-    setTimeout(resolve, ms),
-  );
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

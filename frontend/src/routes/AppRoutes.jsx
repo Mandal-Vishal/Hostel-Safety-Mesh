@@ -19,18 +19,16 @@ import ReportIncident from "../pages/resident/ReportIncident";
 import IncidentDetail from "../pages/resident/IncidentDetail";
 import WardenIncidents from "../pages/warden/Incidents";
 import WardenIncidentDetail from "../pages/warden/IncidentDetail";
-// import AuditLogs from "../pages/warden/AuditLogs";
 
 import Devices from "../pages/warden/Devices";
-
 import Notifications from "../pages/resident/Notifications";
-
 import CheckIns from "../pages/warden/CheckIns";
-
 import Analytics from "../pages/warden/Analytics";
 
-import AuditLogs from "../pages/admin/AuditLogs";
-import AuditLogDetail from "../pages/admin/AuditLogDetail";
+import WardenAuditLogs from "../pages/warden/AuditLogs";
+
+import AdminAuditLogs from "../pages/admin/AuditLogs";
+import AdminAuditLogDetail from "../pages/admin/AuditLogDetail";
 
 import Users from "../pages/admin/Users";
 import Zones from "../pages/admin/Zones";
@@ -42,6 +40,10 @@ export default function AppRoutes() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/ui-kit" element={<UIKit />} />
+
+      {/* ========================= */}
+      {/* RESIDENT */}
+      {/* ========================= */}
 
       <Route
         path="/resident/dashboard"
@@ -60,6 +62,7 @@ export default function AppRoutes() {
           </ProtectedRoute>
         }
       />
+
       <Route
         path="/resident/sos"
         element={
@@ -77,6 +80,7 @@ export default function AppRoutes() {
           </ProtectedRoute>
         }
       />
+
       <Route
         path="/resident/incidents/report"
         element={
@@ -113,6 +117,10 @@ export default function AppRoutes() {
         }
       />
 
+      {/* ========================= */}
+      {/* WARDEN */}
+      {/* ========================= */}
+
       <Route
         path="/warden/dashboard"
         element={
@@ -130,6 +138,7 @@ export default function AppRoutes() {
           </ProtectedRoute>
         }
       />
+
       <Route
         path="/warden/sos/:id"
         element={
@@ -147,6 +156,7 @@ export default function AppRoutes() {
           </ProtectedRoute>
         }
       />
+
       <Route
         path="/warden/incidents/:id"
         element={
@@ -182,14 +192,19 @@ export default function AppRoutes() {
           </ProtectedRoute>
         }
       />
+
       <Route
         path="/warden/audit-logs"
         element={
           <ProtectedRoute allowedRoles={["warden"]}>
-            <AuditLogs />
+            <WardenAuditLogs />
           </ProtectedRoute>
         }
       />
+
+      {/* ========================= */}
+      {/* SECURITY */}
+      {/* ========================= */}
 
       <Route
         path="/security/dashboard"
@@ -199,6 +214,10 @@ export default function AppRoutes() {
           </ProtectedRoute>
         }
       />
+
+      {/* ========================= */}
+      {/* ADMIN */}
+      {/* ========================= */}
 
       <Route
         path="/admin/dashboard"
@@ -213,15 +232,16 @@ export default function AppRoutes() {
         path="/admin/audit-logs"
         element={
           <ProtectedRoute allowedRoles={["admin"]}>
-            <AuditLogs />
+            <AdminAuditLogs />
           </ProtectedRoute>
         }
       />
+
       <Route
         path="/admin/audit-logs/:id"
         element={
           <ProtectedRoute allowedRoles={["admin"]}>
-            <AuditLogDetail />
+            <AdminAuditLogDetail />
           </ProtectedRoute>
         }
       />
@@ -234,6 +254,7 @@ export default function AppRoutes() {
           </ProtectedRoute>
         }
       />
+
       <Route
         path="/admin/zones"
         element={
@@ -242,6 +263,10 @@ export default function AppRoutes() {
           </ProtectedRoute>
         }
       />
+
+      {/* ========================= */}
+      {/* FALLBACK */}
+      {/* ========================= */}
 
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>

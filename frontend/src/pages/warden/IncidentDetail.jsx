@@ -20,6 +20,7 @@ const sidebarLinks = [
   { to: '/warden/incidents', label: 'Incidents' },
   { to: '/warden/devices', label: 'Devices' },
   { to: '/warden/analytics', label: 'Analytics' },
+  { to: '/warden/audit-logs', label: 'Audit Logs' },
 ]
 
 const statusVariant = {
