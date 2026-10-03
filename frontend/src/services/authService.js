@@ -8,40 +8,65 @@ function normalizeAuditLog(log) {
 
     id: log.id,
 
-    actor: log.actor?.name || log.actor?.role || "SYSTEM",
+    actor:
+      log.actor?.name ||
+      log.actor?.role ||
+      "SYSTEM",
 
-    actorRole: log.actor?.role || "SYSTEM",
+    actorRole:
+      log.actor?.role ||
+      "SYSTEM",
 
-    action: log.action || "UNKNOWN",
+    action:
+      log.action ||
+      "UNKNOWN",
 
     resource:
       log.entity?.type && log.entity?.entityId
         ? `${log.entity.type} • ${log.entity.entityId}`
-        : log.entity?.type || "Unknown",
+        : log.entity?.type ||
+          "Unknown",
 
-    previousState: log.previousState || null,
+    previousState:
+      log.previousState ||
+      null,
 
-    newState: log.newState || null,
+    newState:
+      log.newState ||
+      null,
 
-    timestamp: log.timestamp,
+    timestamp:
+      log.timestamp ||
+      null,
 
-    hash: log.hash || null,
+    hash:
+      log.hash ||
+      null,
 
-    previousHash: log.previousHash || null,
+    previousHash:
+      log.previousHash ||
+      null,
 
-    signature: log.signature || null,
+    signature:
+      log.signature ||
+      null,
   };
 }
 
 export async function getAuditLogs() {
   if (USE_MOCK) {
     await delay(300);
-    return [...mockAuditLogs].map(normalizeAuditLog);
+
+    return [...mockAuditLogs].map(
+      normalizeAuditLog,
+    );
   }
 
   const res = await api.get("/audits");
 
-  return (res.data.logs || []).map(normalizeAuditLog);
+  return (res.data.logs || []).map(
+    normalizeAuditLog,
+  );
 }
 
 export async function verifyAuditChain() {
@@ -55,11 +80,15 @@ export async function verifyAuditChain() {
     };
   }
 
-  const res = await api.get("/audits/verify");
+  const res = await api.get(
+    "/audits/verify",
+  );
 
   return res.data.verification;
 }
 
 function delay(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return new Promise((resolve) =>
+    setTimeout(resolve, ms),
+  );
 }

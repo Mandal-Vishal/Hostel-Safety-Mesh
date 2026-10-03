@@ -30,9 +30,43 @@ export function SocketProvider({ children }) {
 
     const socket = io(SOCKET_URL, {
       withCredentials: true,
+
       auth: {
         token,
       },
+
+      /**
+       * Use long-polling only for the local
+       * prototype.
+       *
+       * WebSocket upgrade was repeatedly failing
+       * in the current local environment.
+       */
+      transports: ["polling"],
+
+      upgrade: false,
+
+      reconnection: true,
+
+      reconnectionAttempts: 5,
+
+      reconnectionDelay: 1000,
+    });
+
+    socket.on("connect", () => {
+      console.log("Socket connected:", socket.id);
+    });
+
+    socket.on("connection:success", (payload) => {
+      console.log("Socket authenticated:", payload);
+    });
+
+    socket.on("connect_error", (error) => {
+      console.error("Socket connection error:", error.message);
+    });
+
+    socket.on("disconnect", (reason) => {
+      console.log("Socket disconnected:", reason);
     });
 
     socketRef.current = socket;
