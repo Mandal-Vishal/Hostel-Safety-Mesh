@@ -352,7 +352,7 @@ const getAllCheckIns = async (req, res) => {
     }
 
     const checkIns = await CheckIn.find(filter)
-      .populate("residentId", "firstName lastName email role")
+      .populate("residentId", "firstName lastName email role hostel")
       .sort({
         createdAt: -1,
       })
