@@ -2,11 +2,13 @@ const express = require("express");
 const cors = require("cors");
 
 const authRoutes = require("./routes/auth.route");
-const userRoutes = require("./routes/user.route")
-const checkinRoutes = require('./routes/checkIn.route')
-const incidentRoutes = require('./routes/incident.route')
-const auditRoutes = require('./routes/audit.route')
-const nodeRoutes = require('./routes/node.route')
+const userRoutes = require("./routes/user.route");
+const checkinRoutes = require("./routes/checkIn.route");
+const incidentRoutes = require("./routes/incident.route");
+const auditRoutes = require("./routes/audit.route");
+const nodeRoutes = require("./routes/node.route");
+const analyticsRoutes = require("./routes/analytics.route");
+
 const app = express();
 
 // Global middleware
@@ -14,7 +16,7 @@ app.use(
   cors({
     origin: process.env.CLIENT_URL,
     credentials: true,
-  })
+  }),
 );
 
 app.use(express.json());
@@ -29,11 +31,12 @@ app.get("/api/health", (req, res) => {
 });
 
 // Routes
-app.use("/api/auth", authRoutes)
-app.use("/api/users" , userRoutes)
-app.use("/api/checkins", checkinRoutes)
-app.use("/api/incidents" , incidentRoutes)
-app.use("/api/audits" , auditRoutes)
-app.use("/api/nodes" , nodeRoutes)
+app.use("/api/auth", authRoutes);
+app.use("/api/users", userRoutes);
+app.use("/api/checkins", checkinRoutes);
+app.use("/api/incidents", incidentRoutes);
+app.use("/api/audits", auditRoutes);
+app.use("/api/nodes", nodeRoutes);
+app.use("/api/analytics", analyticsRoutes);
 
 module.exports = app;
