@@ -34,6 +34,8 @@ import AuditLogDetail from '../pages/admin/AuditLogDetail'
 import Users from '../pages/admin/Users'
 import Zones from '../pages/admin/Zones'
 
+import Privacy from '../pages/resident/Privacy'
+
 export default function AppRoutes() {
   return (
     <Routes>
@@ -97,6 +99,15 @@ export default function AppRoutes() {
         element={
           <ProtectedRoute allowedRoles={['resident']}>
             <Notifications />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/resident/privacy"
+        element={
+          <ProtectedRoute allowedRoles={['resident']}>
+            <Privacy />
           </ProtectedRoute>
         }
       />
