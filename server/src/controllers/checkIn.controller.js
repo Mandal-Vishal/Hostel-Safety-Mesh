@@ -147,6 +147,32 @@ const checkIn = async (req, res) => {
       }
     }
 
+    /**
+     * ---------------------------------------------------------
+     * REAL-TIME WARDEN UPDATE
+     * ---------------------------------------------------------
+     *
+     * The resident's check-in has now been persisted.
+     * Notify operational staff through Socket.IO.
+     *
+     * Only the privacy-filtered Warden representation is
+     * emitted. Internal fields are never exposed.
+     */
+    await record.populate(
+      "residentId",
+      "firstName lastName role hostel currentZone",
+    );
+
+    const wardenCheckIn = formatSafeCheckIn(record, "warden");
+
+    const io = req.app.get("io");
+
+    if (io) {
+      io.to("role:warden").emit("checkin:updated", {
+        checkIn: wardenCheckIn,
+      });
+    }
+
     return res.status(200).json({
       success: true,
 
