@@ -29,25 +29,27 @@ export default function Notifications() {
 
   return (
     <DashboardLayout mobileLinks={mobileLinks}>
-      <h1 className="text-xl font-bold text-neutral-900 mb-4">Notifications</h1>
+      <div className="max-w-md mx-auto">
+        <h1 className="text-xl font-bold text-neutral-900 mb-4">Notifications</h1>
 
-      {loading && (
-        <div className="flex justify-center py-10">
-          <Spinner />
-        </div>
-      )}
+        {loading && (
+          <div className="flex justify-center py-10">
+            <Spinner />
+          </div>
+        )}
 
-      {!loading && notifications.length === 0 && (
-        <EmptyState title="No notifications." />
-      )}
+        {!loading && notifications.length === 0 && (
+          <EmptyState title="No notifications." />
+        )}
 
-      {!loading && notifications.length > 0 && (
-        <div className="space-y-1 max-w-md">
-          {notifications.map((n) => (
-            <NotificationItem key={n.id} notification={n} onClick={handleClick} />
-          ))}
-        </div>
-      )}
+        {!loading && notifications.length > 0 && (
+          <div className="space-y-1">
+            {notifications.map((n) => (
+              <NotificationItem key={n.id} notification={n} onClick={handleClick} />
+            ))}
+          </div>
+        )}
+      </div>
     </DashboardLayout>
   )
 }
