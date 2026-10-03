@@ -31,6 +31,9 @@ import Analytics from '../pages/warden/Analytics'
 import AuditLogs from '../pages/admin/AuditLogs'
 import AuditLogDetail from '../pages/admin/AuditLogDetail'
 
+import Users from '../pages/admin/Users'
+import Zones from '../pages/admin/Zones'
+
 export default function AppRoutes() {
   return (
     <Routes>
@@ -199,6 +202,23 @@ export default function AppRoutes() {
         element={
           <ProtectedRoute allowedRoles={['admin']}>
             <AuditLogDetail />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/admin/users"
+        element={
+          <ProtectedRoute allowedRoles={['admin']}>
+            <Users />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/zones"
+        element={
+          <ProtectedRoute allowedRoles={['admin']}>
+            <Zones />
           </ProtectedRoute>
         }
       />
