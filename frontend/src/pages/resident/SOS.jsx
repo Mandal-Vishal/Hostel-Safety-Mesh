@@ -4,8 +4,7 @@ import SOSConfirmation from '../../components/sos/SOSConfirmation'
 import SOSStatusCard from '../../components/sos/SOSStatusCard'
 import Spinner from '../../components/ui/Spinner'
 import ErrorState from '../../components/ui/ErrorState'
-import { getActiveSOS, createSOS, _devAdvanceStatus } from '../../services/sosService'
-import { SOS_STATUSES } from '../../utils/sosStatus'
+import { getActiveSOS, createSOS } from '../../services/sosService'
 import { useSocketEvent } from '../../hooks/useSocket'
 
 const mobileLinks = [
@@ -26,13 +25,34 @@ export default function SOS() {
     loadActive()
   }, [])
 
-  useSocketEvent('sos:acknowledged', (updatedSOS) => {
-    setActiveSOS(updatedSOS)
+  useSocketEvent('incident:created', (payload) => {
+    if (payload?.incident) {
+      setActiveSOS(payload.incident)
+    }
+  })
+
+  useSocketEvent('incident:acknowledged', (payload) => {
+    if (payload?.incident) {
+      setActiveSOS(payload.incident)
+    }
+  })
+
+  useSocketEvent('incident:escalated', (payload) => {
+    if (payload?.incident) {
+      setActiveSOS(payload.incident)
+    }
+  })
+
+  useSocketEvent('incident:resolved', (payload) => {
+    if (payload?.incident) {
+      setActiveSOS(null)
+    }
   })
 
   function loadActive() {
     setLoading(true)
     setError(false)
+
     getActiveSOS()
       .then(setActiveSOS)
       .catch(() => setError(true))
@@ -41,22 +61,17 @@ export default function SOS() {
 
   async function handleConfirmSOS() {
     setSending(true)
+    setError(false)
+
     try {
       const sos = await createSOS()
+
       setActiveSOS(sos)
       setConfirmOpen(false)
     } catch {
       setError(true)
     } finally {
       setSending(false)
-    }
-  }
-
-  function advanceStatus() {
-    const currentIndex = SOS_STATUSES.indexOf(activeSOS.status)
-    const next = SOS_STATUSES[currentIndex + 1]
-    if (next) {
-      _devAdvanceStatus(next)
     }
   }
 
@@ -69,29 +84,22 @@ export default function SOS() {
           </div>
         )}
 
-        {!loading && error && <ErrorState onRetry={loadActive} />}
+        {!loading && error && (
+          <ErrorState onRetry={loadActive} />
+        )}
 
         {!loading && !error && !activeSOS && (
           <div className="text-center py-10">
             <p className="text-neutral-600 mb-6 text-sm">
               Press the button below only if you need immediate assistance.
             </p>
+
             <SOSButtonDirect onPress={() => setConfirmOpen(true)} />
           </div>
         )}
 
         {!loading && !error && activeSOS && (
-          <>
-            <SOSStatusCard sos={activeSOS} />
-            {activeSOS.status !== 'RESOLVED' && (
-              <button
-                onClick={advanceStatus}
-                className="mt-4 text-xs text-neutral-600 underline block mx-auto"
-              >
-                [DEV] Advance status →
-              </button>
-            )}
-          </>
+          <SOSStatusCard sos={activeSOS} />
         )}
 
         <SOSConfirmation
@@ -105,7 +113,6 @@ export default function SOS() {
   )
 }
 
-// local variant of SOSButton that triggers the confirm modal instead of navigating
 function SOSButtonDirect({ onPress }) {
   return (
     <button

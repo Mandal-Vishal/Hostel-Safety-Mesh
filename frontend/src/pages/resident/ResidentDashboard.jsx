@@ -1,49 +1,69 @@
-import { useEffect, useState } from 'react'
-import DashboardLayout from '../../components/layout/DashboardLayout'
-import CheckInCard from '../../components/checkin/CheckInCard'
-import SOSButton from '../../components/sos/SOSButton'
-import ActivityFeed from '../../components/dashboard/ActivityFeed'
-import Spinner from '../../components/ui/Spinner'
-import ErrorState from '../../components/ui/ErrorState'
-import { useAuth } from '../../hooks/useAuth'
-import { getCurrentStatus } from '../../services/checkInService'
-import { mockActivity } from '../../mock/activity'
+import { useEffect, useState } from "react";
+import DashboardLayout from "../../components/layout/DashboardLayout";
+import CheckInCard from "../../components/checkin/CheckInCard";
+import SOSButton from "../../components/sos/SOSButton";
+import ActivityFeed from "../../components/dashboard/ActivityFeed";
+import Spinner from "../../components/ui/Spinner";
+import ErrorState from "../../components/ui/ErrorState";
+import { useAuth } from "../../hooks/useAuth";
+import { getCurrentStatus } from "../../services/checkInService";
+import { mockActivity } from "../../mock/activity";
 
 const mobileLinks = [
-  { to: '/resident/dashboard', label: 'Home' },
-  { to: '/resident/check-in', label: 'Check-In' },
-  { to: '/resident/sos', label: 'SOS' },
-  { to: '/resident/incidents', label: 'Incidents' },
-]
+  { to: "/resident/dashboard", label: "Home" },
+  { to: "/resident/check-in", label: "Check-In" },
+  { to: "/resident/sos", label: "SOS" },
+  { to: "/resident/incidents", label: "Incidents" },
+];
+
+function formatLocation(location) {
+  if (!location) return "Hostel location unavailable";
+
+  return [
+    location.building,
+    location.floor !== null && location.floor !== undefined
+      ? `Floor ${location.floor}`
+      : null,
+    location.room ? `Room ${location.room}` : null,
+  ]
+    .filter(Boolean)
+    .join(" • ");
+}
 
 export default function ResidentDashboard() {
-  const { user } = useAuth()
-  const [status, setStatus] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(false)
+  const { user } = useAuth();
+
+  const [status, setStatus] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
-    loadStatus()
-  }, [])
+    loadStatus();
+  }, []);
 
   function loadStatus() {
-    setLoading(true)
-    setError(false)
+    setLoading(true);
+    setError(false);
+
     getCurrentStatus()
       .then(setStatus)
       .catch(() => setError(true))
-      .finally(() => setLoading(false))
+      .finally(() => setLoading(false));
   }
+
+  const displayName =
+    [user?.firstName, user?.lastName].filter(Boolean).join(" ") || "Resident";
 
   return (
     <DashboardLayout mobileLinks={mobileLinks}>
       <div className="max-w-md mx-auto space-y-6">
         <div>
           <h1 className="text-xl font-bold text-neutral-900">
-            Good evening, {user?.name}
+            Good evening, {displayName}
           </h1>
+
           <p className="text-neutral-600 text-sm">
-            {user?.hostel} • Room {user?.room}
+            {formatLocation(user?.hostel)}
           </p>
         </div>
 
@@ -62,5 +82,5 @@ export default function ResidentDashboard() {
         <ActivityFeed items={mockActivity} />
       </div>
     </DashboardLayout>
-  )
+  );
 }

@@ -1,22 +1,29 @@
-export const SOS_STATUSES = ['TRIGGERED', 'ACKNOWLEDGED', 'RESPONDING', 'ON_SCENE', 'RESOLVED']
+export const SOS_STATUSES = [
+  "PENDING",
+  "ACKNOWLEDGED",
+  "ESCALATED",
+  "RESOLVED",
+];
 
 export function getStatusMessage(status) {
   switch (status) {
-    case 'TRIGGERED':
-      return 'Your safety team has been notified.'
-    case 'ACKNOWLEDGED':
-      return 'Your warden has received your request. Help is on the way.'
-    case 'RESPONDING':
-      return 'Security staff is responding.'
-    case 'ON_SCENE':
-      return 'Help has arrived.'
-    case 'RESOLVED':
-      return 'This incident has been resolved.'
+    case "PENDING":
+      return "Your SOS has been received. A warden is reviewing it.";
+
+    case "ACKNOWLEDGED":
+      return "Your warden has acknowledged the SOS.";
+
+    case "ESCALATED":
+      return "Your SOS has been escalated to security.";
+
+    case "RESOLVED":
+      return "This SOS incident has been resolved.";
+
     default:
-      return ''
+      return "";
   }
 }
 
 export function getStatusLabel(status) {
-  return status.replace('_', ' ')
+  return status.replace("_", " ");
 }

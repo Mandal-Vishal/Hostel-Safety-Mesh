@@ -25,13 +25,30 @@ export default function ActiveSOS() {
     loadList()
   }, [])
 
-  useSocketEvent('sos:acknowledged', () => loadList())
+  useSocketEvent('incident:new', () => {
+    loadList()
+  })
 
-  useSocketEvent('sos:escalated', (updated) => setSos(updated))
+  useSocketEvent('incident:updated', () => {
+    loadList()
+  })
+
+  useSocketEvent('incident:acknowledged', () => {
+    loadList()
+  })
+
+  useSocketEvent('incident:escalated', () => {
+    loadList()
+  })
+
+  useSocketEvent('incident:resolved', () => {
+    loadList()
+  })
 
   function loadList() {
     setLoading(true)
     setError(false)
+
     getAllActiveSOS()
       .then(setList)
       .catch(() => setError(true))
@@ -40,7 +57,9 @@ export default function ActiveSOS() {
 
   return (
     <DashboardLayout sidebarLinks={sidebarLinks}>
-      <h1 className="text-xl font-bold text-neutral-900 mb-4">Active SOS</h1>
+      <h1 className="text-xl font-bold text-neutral-900 mb-4">
+        Active SOS
+      </h1>
 
       {loading && (
         <div className="flex justify-center py-10">
@@ -48,10 +67,15 @@ export default function ActiveSOS() {
         </div>
       )}
 
-      {!loading && error && <ErrorState onRetry={loadList} />}
+      {!loading && error && (
+        <ErrorState onRetry={loadList} />
+      )}
 
       {!loading && !error && list.length === 0 && (
-        <EmptyState title="No active SOS alerts." description="Everything is currently under control." />
+        <EmptyState
+          title="No active SOS alerts."
+          description="Everything is currently under control."
+        />
       )}
 
       {!loading && !error && list.length > 0 && (

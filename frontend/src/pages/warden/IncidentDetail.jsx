@@ -7,7 +7,11 @@ import Button from '../../components/ui/Button'
 import Spinner from '../../components/ui/Spinner'
 import ErrorState from '../../components/ui/ErrorState'
 import IncidentTimeline from '../../components/incidents/IncidentTimeline'
-import { getIncidentDetails, updateIncident, getMockTimeline } from '../../services/incidentService'
+import {
+  getIncidentDetails,
+  updateIncident,
+  getMockTimeline,
+} from '../../services/incidentService'
 
 const sidebarLinks = [
   { to: '/warden/dashboard', label: 'Dashboard' },
@@ -18,10 +22,15 @@ const sidebarLinks = [
   { to: '/warden/analytics', label: 'Analytics' },
 ]
 
-const statusVariant = { OPEN: 'danger', INVESTIGATING: 'warning', RESOLVED: 'success' }
+const statusVariant = {
+  OPEN: 'danger',
+  INVESTIGATING: 'warning',
+  RESOLVED: 'success',
+}
 
 export default function IncidentDetail() {
   const { id } = useParams()
+
   const [incident, setIncident] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
@@ -34,16 +43,40 @@ export default function IncidentDetail() {
   function load() {
     setLoading(true)
     setError(false)
+
     getIncidentDetails(id)
       .then(setIncident)
       .catch(() => setError(true))
       .finally(() => setLoading(false))
   }
 
+  async function handleAcknowledge() {
+    setUpdating(true)
+    setError(false)
+
+    try {
+      const updated = await updateIncident(id, {
+        status: 'ACKNOWLEDGED',
+      })
+
+      setIncident(updated)
+    } catch {
+      setError(true)
+    } finally {
+      setUpdating(false)
+    }
+  }
+
   async function handleResolve() {
     setUpdating(true)
+    setError(false)
+
     try {
-      const updated = await updateIncident(id, { status: 'RESOLVED' })
+      const updated = await updateIncident(id, {
+        status: 'RESOLVED',
+        resolutionNote: 'Warden resolved the incident.',
+      })
+
       setIncident(updated)
     } catch {
       setError(true)
@@ -61,38 +94,104 @@ export default function IncidentDetail() {
           </div>
         )}
 
-        {!loading && error && <ErrorState onRetry={load} />}
+        {!loading && error && (
+          <ErrorState onRetry={load} />
+        )}
 
         {!loading && !error && incident && (
           <div className="space-y-4">
             <Card>
               <div className="flex items-center justify-between mb-2">
-                <p className="font-bold text-neutral-900">Incident #{incident.id}</p>
-                <Badge variant={statusVariant[incident.status] || 'neutral'}>{incident.status}</Badge>
+                <p className="font-bold text-neutral-900">
+                  Incident #{incident.id}
+                </p>
+
+                <Badge
+                  variant={
+                    statusVariant[incident.status] ||
+                    'neutral'
+                  }
+                >
+                  {incident.status}
+                </Badge>
               </div>
-              <p className="text-sm text-neutral-600">Type</p>
-              <p className="text-neutral-900 mb-2">{incident.type}</p>
-              <p className="text-sm text-neutral-600">Zone</p>
-              <p className="text-neutral-900 mb-2">{incident.zone}</p>
-              <p className="text-sm text-neutral-600">Reported</p>
-              <p className="text-neutral-900 mb-2">{incident.date}</p>
-              {incident.description && (
+
+              <p className="text-sm text-neutral-600">
+                Type
+              </p>
+
+              <p className="text-neutral-900 mb-2">
+                {incident.type}
+              </p>
+
+              <p className="text-sm text-neutral-600">
+                Zone
+              </p>
+
+              <p className="text-neutral-900 mb-2">
+                {incident.zone}
+              </p>
+
+              <p className="text-sm text-neutral-600">
+                Reported
+              </p>
+
+              <p className="text-neutral-900 mb-2">
+                {incident.date}
+              </p>
+
+              {incident.resident?.name && (
                 <>
-                  <p className="text-sm text-neutral-600">Description</p>
-                  <p className="text-neutral-900 mb-2">{incident.description}</p>
+                  <p className="text-sm text-neutral-600">
+                    Resident
+                  </p>
+
+                  <p className="text-neutral-900 mb-2">
+                    {incident.resident.name}
+                  </p>
                 </>
               )}
 
-              {incident.status !== 'RESOLVED' && (
-                <Button className="w-full mt-3" onClick={handleResolve} disabled={updating}>
-                  {updating ? 'Updating...' : 'Mark Resolved'}
+              {incident.backendStatus === 'PENDING' && (
+                <Button
+                  className="w-full mt-3"
+                  onClick={handleAcknowledge}
+                  disabled={updating}
+                >
+                  {updating
+                    ? 'Updating...'
+                    : 'Acknowledge Incident'}
                 </Button>
+              )}
+
+              {incident.backendStatus === 'ACKNOWLEDGED' && (
+                <Button
+                  variant="success"
+                  className="w-full mt-3"
+                  onClick={handleResolve}
+                  disabled={updating}
+                >
+                  {updating
+                    ? 'Updating...'
+                    : 'Mark Resolved'}
+                </Button>
+              )}
+
+              {incident.backendStatus === 'ESCALATED' && (
+                <p className="text-danger-600 font-medium mt-4">
+                  Escalated to security.
+                </p>
               )}
             </Card>
 
             <Card>
-              <p className="font-semibold text-neutral-900 mb-3">Timeline</p>
-              <IncidentTimeline events={getMockTimeline(incident)} />
+              <p className="font-semibold text-neutral-900 mb-3">
+                Timeline
+              </p>
+
+              <IncidentTimeline
+                events={getMockTimeline(incident)}
+              />
             </Card>
           </div>
         )}
