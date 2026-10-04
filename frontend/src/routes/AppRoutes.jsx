@@ -8,6 +8,9 @@ import WardenDashboard from "../pages/warden/WardenDashboard";
 import SecurityDashboard from "../pages/security/SecurityDashboard";
 import AdminDashboard from "../pages/admin/AdminDashboard";
 
+import SecurityAlerts from "../pages/security/SecurityAlerts";
+import SecurityIncidents from "../pages/security/SecurityIncidents";
+
 import CheckIn from "../pages/resident/CheckIn";
 import SOS from "../pages/resident/SOS";
 import SOSDetail from "../pages/warden/SOSDetail";
@@ -211,6 +214,24 @@ export default function AppRoutes() {
         element={
           <ProtectedRoute allowedRoles={["security"]}>
             <SecurityDashboard />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/security/alerts"
+        element={
+          <ProtectedRoute allowedRoles={["security"]}>
+            <SecurityAlerts />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/security/incidents"
+        element={
+          <ProtectedRoute allowedRoles={["security"]}>
+            <SecurityIncidents />
           </ProtectedRoute>
         }
       />

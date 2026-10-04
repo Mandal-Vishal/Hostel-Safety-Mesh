@@ -67,7 +67,7 @@ export default function ResidentDashboard() {
           </p>
 
           <h1 className="text-2xl sm:text-3xl font-bold text-neutral-900">
-            Good evening, {displayName}
+            Welcome, {displayName}
           </h1>
 
           <p className="text-sm text-neutral-500 mt-2">
@@ -132,17 +132,6 @@ export default function ResidentDashboard() {
 
             <SOSButton />
           </Card>
-        </section>
-
-        {/* Recent activity */}
-        <section>
-          <div className="mb-3">
-            <h2 className="text-lg font-semibold text-neutral-900">
-              Recent Activity
-            </h2>
-          </div>
-
-          <ActivityFeed items={mockActivity} />
         </section>
       </div>
     </DashboardLayout>
