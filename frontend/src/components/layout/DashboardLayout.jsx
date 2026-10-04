@@ -1,13 +1,29 @@
+import { useEffect } from "react";
+
 import Navbar from "./Navbar";
 import Sidebar from "./Sidebar";
 import MobileNav from "./MobileNav";
 import ResidentTopNav from "./ResidentTopNav";
+
+import { useAuth } from "../../hooks/useAuth";
+import { USE_MOCK } from "../../services/config";
+import { enablePushNotifications } from "../../services/pushNotificationService";
 
 export default function DashboardLayout({
   children,
   sidebarLinks,
   mobileLinks,
 }) {
+  const { user } = useAuth();
+
+  useEffect(() => {
+    if (!user || USE_MOCK) {
+      return;
+    }
+
+    enablePushNotifications();
+  }, [user]);
+
   return (
     <div className="min-h-screen bg-neutral-50 flex flex-col">
       <Navbar />
