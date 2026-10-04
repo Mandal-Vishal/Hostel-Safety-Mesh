@@ -1,5 +1,6 @@
 const Incident = require("../models/incident.model");
 const User = require("../models/user.model");
+const { sendPushToUser, sendPushToRoles } = require("../services/push.service");
 
 const formatDateIST = require("../utils/formatDate");
 const { createAuditLog } = require("../services/audit.service");
@@ -116,6 +117,15 @@ const createSOS = async (req, res) => {
       metadata: {
         reason: "Resident triggered SOS",
       },
+    });
+
+    await sendPushToRoles(["warden"], {
+      title: "New SOS Alert",
+      body: `Immediate assistance required • ${
+        location.building || "Unknown Block"
+      } • Floor ${location.floor ?? "-"}`,
+      url: "/warden/active-sos",
+      tag: `sos-${incident.incidentId}`,
     });
 
     await incident.populate("residentId", "firstName lastName email role");
@@ -390,6 +400,13 @@ const acknowledgeIncident = async (req, res) => {
       },
     });
 
+    await sendPushToUser(incident.residentId, {
+      title: "SOS Acknowledged",
+      body: "Your SOS has been acknowledged by the hostel team.",
+      url: "/resident/sos",
+      tag: `sos-${incident.incidentId}`,
+    });
+
     await incident.populate("residentId", "firstName lastName email role");
 
     const residentIncident = formatSafeIncident(incident, "resident");
@@ -529,6 +546,13 @@ const escalateIncident = async (req, res) => {
       metadata: {
         reason: incident.escalationReason,
       },
+    });
+
+    await sendPushToUser(incident.residentId, {
+      title: "SOS Resolved",
+      body: "Your SOS incident has been resolved by the hostel team.",
+      url: "/resident/sos",
+      tag: `sos-${incident.incidentId}`,
     });
 
     await incident.populate("residentId", "firstName lastName email role");

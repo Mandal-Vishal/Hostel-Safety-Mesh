@@ -8,6 +8,7 @@ const incidentRoutes = require("./routes/incident.route");
 const auditRoutes = require("./routes/audit.route");
 const nodeRoutes = require("./routes/node.route");
 const analyticsRoutes = require("./routes/analytics.route");
+const pushRoutes = require("./routes/push.route");
 
 const app = express();
 
@@ -35,6 +36,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/checkins", checkinRoutes);
 app.use("/api/incidents", incidentRoutes);
+app.use("/api/notifications/push", pushRoutes);
 app.use("/api/audits", auditRoutes);
 app.use("/api/nodes", nodeRoutes);
 app.use("/api/analytics", analyticsRoutes);
