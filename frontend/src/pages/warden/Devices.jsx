@@ -14,7 +14,7 @@ const sidebarLinks = [
   { to: "/warden/incidents", label: "Incidents" },
   { to: "/warden/devices", label: "Devices" },
   { to: "/warden/analytics", label: "Analytics" },
-  { to: '/warden/audit-logs', label: 'Audit Logs' },
+  { to: "/warden/audit-logs", label: "Audit Logs" },
 ];
 
 const statusDot = {
@@ -59,7 +59,7 @@ function updateNodeList(current, incomingNode) {
   const normalized = normalizeNode(incomingNode);
 
   const existingIndex = current.findIndex(
-    (device) => device.id === normalized.id,
+    (device) => device.id === normalized.id
   );
 
   if (existingIndex === -1) {
@@ -72,7 +72,7 @@ function updateNodeList(current, incomingNode) {
           ...device,
           ...normalized,
         }
-      : device,
+      : device
   );
 }
 
@@ -85,41 +85,20 @@ export default function Devices() {
     load();
   }, []);
 
-  /**
-   * Node came online.
-   */
   useSocketEvent("node:online", (payload) => {
-    if (!payload?.node) {
-      return;
-    }
+    if (!payload?.node) return;
 
     setDevices((current) => updateNodeList(current, payload.node));
   });
 
-  /**
-   * Node heartbeat / health update.
-   *
-   * This keeps the Warden page current without
-   * requiring a refresh.
-   */
   useSocketEvent("node:health", (payload) => {
-    if (!payload?.node) {
-      return;
-    }
+    if (!payload?.node) return;
 
     setDevices((current) => updateNodeList(current, payload.node));
   });
 
-  /**
-   * Node became offline due to:
-   *
-   * 1. explicit MQTT NODE_OFFLINE
-   * 2. heartbeat timeout
-   */
   useSocketEvent("node:offline", (payload) => {
-    if (!payload?.node) {
-      return;
-    }
+    if (!payload?.node) return;
 
     setDevices((current) => updateNodeList(current, payload.node));
   });
@@ -129,7 +108,7 @@ export default function Devices() {
     setError(false);
 
     getDevices()
-      .then(setDevices)
+      .then((data) => setDevices(data))
       .catch((err) => {
         console.error("Failed to load devices:", err);
         setError(true);
@@ -139,74 +118,110 @@ export default function Devices() {
 
   const total = devices.length;
   const online = devices.filter((device) => device.status === "ONLINE").length;
-  const offline = devices.filter(
-    (device) => device.status === "OFFLINE",
-  ).length;
-  const warning = devices.filter(
-    (device) => device.status === "WARNING",
-  ).length;
+  const offline = devices.filter((device) => device.status === "OFFLINE").length;
+  const warning = devices.filter((device) => device.status === "WARNING").length;
 
   return (
     <DashboardLayout sidebarLinks={sidebarLinks}>
-      <h1 className="text-xl font-bold text-neutral-900 mb-4">Device Health</h1>
+      <div className="w-full max-w-6xl mx-auto">
+        {/* Header */}
+        <div className="mb-6">
+          <h1 className="text-xl sm:text-2xl font-bold text-neutral-900">
+            Device Health
+          </h1>
 
-      {loading && (
-        <div className="flex justify-center py-10">
-          <Spinner />
+          <p className="text-sm text-neutral-500 mt-1">
+            Monitor corridor and room safety nodes in real time.
+          </p>
         </div>
-      )}
 
-      {!loading && error && <ErrorState onRetry={load} />}
-
-      {!loading && !error && (
-        <>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6 max-w-2xl">
-            <StatCard label="Total Devices" value={total} />
-
-            <StatCard label="Online" value={online} />
-
-            <StatCard label="Offline" value={offline} accent="danger" />
-
-            <StatCard label="Warning" value={warning} />
+        {loading && (
+          <div className="flex justify-center py-16">
+            <Spinner />
           </div>
+        )}
 
-          <Card className="max-w-2xl">
-            <div className="divide-y divide-neutral-200">
-              <div className="grid grid-cols-3 text-xs font-semibold text-neutral-600 uppercase pb-2">
-                <span>Device ID</span>
-                <span>Zone</span>
-                <span>Status</span>
-              </div>
+        {!loading && error && <ErrorState onRetry={load} />}
 
-              {devices.length === 0 && (
-                <div className="py-6">
-                  <p className="text-sm text-neutral-600">
-                    No active devices registered.
-                  </p>
-                </div>
-              )}
-
-              {devices.map((device) => (
-                <div key={device.id} className="grid grid-cols-3 py-3 text-sm">
-                  <span className="text-neutral-900 font-medium">
-                    {device.id}
-                  </span>
-
-                  <span className="text-neutral-600">{device.zone}</span>
-
-                  <span
-                    className={`font-medium ${
-                      statusDot[device.status] || "text-neutral-600"
-                    }`}
-                  >
-                    ● {device.status}
-                  </span>
-                </div>
-              ))}
+        {!loading && !error && (
+          <>
+            {/* Summary */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6">
+              <StatCard label="Total Devices" value={total} />
+              <StatCard label="Online" value={online} />
+              <StatCard
+                label="Offline"
+                value={offline}
+                accent="danger"
+              />
+              <StatCard label="Warning" value={warning} />
             </div>
-          </Card>
-        </>
-      )}
+
+            {/* Devices */}
+            <Card className="w-full overflow-hidden">
+              <div className="px-1 sm:px-2">
+                {/* Desktop/tablet header */}
+                <div className="hidden sm:grid grid-cols-[1.1fr_1.6fr_0.8fr] gap-4 px-3 pb-3 text-xs font-semibold text-neutral-500 uppercase tracking-wide">
+                  <span>Device ID</span>
+                  <span>Location</span>
+                  <span>Status</span>
+                </div>
+
+                {devices.length === 0 && (
+                  <div className="py-10 text-center">
+                    <p className="text-sm font-medium text-neutral-900">
+                      No active devices registered.
+                    </p>
+                    <p className="text-xs text-neutral-500 mt-1">
+                      Connected safety nodes will appear here.
+                    </p>
+                  </div>
+                )}
+
+                {devices.map((device) => (
+                  <div
+                    key={device.id}
+                    className="border-t border-neutral-200 px-3 py-4 sm:grid sm:grid-cols-[1.1fr_1.6fr_0.8fr] sm:gap-4 sm:items-center"
+                  >
+                    {/* Device */}
+                    <div className="mb-2 sm:mb-0">
+                      <p className="text-sm font-semibold text-neutral-900 break-all">
+                        {device.id}
+                      </p>
+                    </div>
+
+                    {/* Location */}
+                    <div className="mb-2 sm:mb-0">
+                      <p className="text-xs text-neutral-500 sm:hidden mb-0.5">
+                        Location
+                      </p>
+                      <p className="text-sm text-neutral-600">
+                        {device.zone}
+                      </p>
+                    </div>
+
+                    {/* Status */}
+                    <div>
+                      <p className="text-xs text-neutral-500 sm:hidden mb-0.5">
+                        Status
+                      </p>
+
+                      <span
+                        className={`inline-flex items-center gap-1.5 text-sm font-medium ${
+                          statusDot[device.status] || "text-neutral-600"
+                        }`}
+                      >
+                        <span>●</span>
+                        {device.status}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </>
+        )}
+      </div>
     </DashboardLayout>
   );
 }

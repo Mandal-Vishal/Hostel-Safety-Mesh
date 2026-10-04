@@ -1,55 +1,129 @@
-import { useEffect, useState } from 'react'
-import DashboardLayout from '../../components/layout/DashboardLayout'
-import NotificationItem from '../../components/notifications/NotificationItem'
-import Spinner from '../../components/ui/Spinner'
-import EmptyState from '../../components/ui/EmptyState'
-import { getNotifications, markAsRead } from '../../services/notificationService'
+import { useEffect, useState } from "react";
+import DashboardLayout from "../../components/layout/DashboardLayout";
+import NotificationItem from "../../components/notifications/NotificationItem";
+import Spinner from "../../components/ui/Spinner";
+import EmptyState from "../../components/ui/EmptyState";
+import { useAuth } from "../../hooks/useAuth";
+import {
+  getNotifications,
+  markAsRead,
+  syncIncidentNotifications,
+} from "../../services/notificationService";
 
 const mobileLinks = [
-  { to: '/resident/dashboard', label: 'Home' },
-  { to: '/resident/check-in', label: 'Check-In' },
-  { to: '/resident/sos', label: 'SOS' },
-  { to: '/resident/incidents', label: 'Incidents' },
-]
+  { to: "/resident/dashboard", label: "Home" },
+  { to: "/resident/check-in", label: "Check-In" },
+  { to: "/resident/sos", label: "SOS" },
+  { to: "/resident/incidents", label: "Incidents" },
+];
 
 export default function Notifications() {
-  const [notifications, setNotifications] = useState([])
-  const [loading, setLoading] = useState(true)
+  const { user } = useAuth();
+
+  const [notifications, setNotifications] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const userKey = user?._id || user?.id || user?.email || "default";
 
   useEffect(() => {
-    getNotifications().then(setNotifications).finally(() => setLoading(false))
-  }, [])
+    if (!user) {
+      return;
+    }
+
+    let active = true;
+
+    async function load() {
+      try {
+        const updated = await syncIncidentNotifications(user);
+
+        if (active) {
+          setNotifications(updated);
+        }
+      } catch (error) {
+        console.error("Failed to load notifications:", error);
+
+        const existing = await getNotifications(userKey);
+
+        if (active) {
+          setNotifications(existing);
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    }
+
+    load();
+
+    const interval = setInterval(async () => {
+      try {
+        const updated = await syncIncidentNotifications(user);
+
+        if (active) {
+          setNotifications(updated);
+        }
+      } catch {
+        // Keep the current notification list.
+      }
+    }, 3000);
+
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [user, userKey]);
 
   async function handleClick(notification) {
-    await markAsRead(notification.id)
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === notification.id ? { ...n, read: true } : n))
-    )
+    const updated = await markAsRead(notification.id, userKey);
+
+    setNotifications(updated);
   }
 
   return (
     <DashboardLayout mobileLinks={mobileLinks}>
-      <div className="max-w-md mx-auto">
-        <h1 className="text-xl font-bold text-neutral-900 mb-4">Notifications</h1>
+      <div className="w-full max-w-3xl mx-auto">
+        <div className="mb-6">
+          <p className="text-sm font-medium text-primary-600">
+            Resident Portal
+          </p>
+
+          <h1 className="text-2xl sm:text-3xl font-bold text-neutral-900 mt-1">
+            Notifications
+          </h1>
+
+          <p className="text-sm text-neutral-500 mt-2">
+            Safety alerts and updates related to your account.
+          </p>
+        </div>
 
         {loading && (
-          <div className="flex justify-center py-10">
+          <div className="flex justify-center py-12">
             <Spinner />
           </div>
         )}
 
         {!loading && notifications.length === 0 && (
-          <EmptyState title="No notifications." />
+          <div className="bg-white border border-neutral-200 rounded-xl">
+            <EmptyState
+              title="No notifications."
+              description="New SOS and safety updates will appear here."
+            />
+          </div>
         )}
 
         {!loading && notifications.length > 0 && (
-          <div className="space-y-1">
-            {notifications.map((n) => (
-              <NotificationItem key={n.id} notification={n} onClick={handleClick} />
+          <div className="bg-white border border-neutral-200 rounded-xl p-2 sm:p-3 space-y-1">
+            {notifications.map((notification) => (
+              <NotificationItem
+                key={notification.id}
+                notification={notification}
+                onClick={handleClick}
+              />
             ))}
           </div>
         )}
       </div>
     </DashboardLayout>
-  )
+  );
 }

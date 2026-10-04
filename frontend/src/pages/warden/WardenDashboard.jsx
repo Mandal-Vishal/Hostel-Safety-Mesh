@@ -29,12 +29,10 @@ export default function WardenDashboard() {
     loadData()
   }, [])
 
-  // live update: when any SOS changes status, refresh the active list
   useSocketEvent('sos:acknowledged', () => {
     getAllActiveSOS().then(setActiveSOS)
   })
 
-  // live update: when an SOS escalates, refresh the active list
   useSocketEvent('sos:escalated', () => {
     getAllActiveSOS().then(setActiveSOS)
   })
@@ -42,6 +40,7 @@ export default function WardenDashboard() {
   function loadData() {
     setLoading(true)
     setError(false)
+
     Promise.all([getStats(), getAllActiveSOS()])
       .then(([statsData, sosData]) => {
         setStats(statsData)
@@ -53,41 +52,86 @@ export default function WardenDashboard() {
 
   return (
     <DashboardLayout sidebarLinks={sidebarLinks}>
-      <div className="max-w-3xl space-y-6">
-        <h1 className="text-xl font-bold text-neutral-900">Warden Dashboard</h1>
+      <div className="w-full max-w-7xl mx-auto space-y-8">
+        {/* Page header */}
+        <div>
+          <h1 className="text-2xl font-bold text-neutral-900">
+            Warden Dashboard
+          </h1>
+          <p className="mt-1 text-sm text-neutral-500">
+            Monitor hostel safety, SOS alerts and resident activity.
+          </p>
+        </div>
 
         {loading && (
-          <div className="flex justify-center py-10">
+          <div className="flex justify-center py-16">
             <Spinner />
           </div>
         )}
 
-        {!loading && error && <ErrorState onRetry={loadData} />}
+        {!loading && error && (
+          <div className="max-w-xl">
+            <ErrorState onRetry={loadData} />
+          </div>
+        )}
 
-        {!loading && !error && (
+        {!loading && !error && stats && (
           <>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <StatCard label="Active SOS" value={stats.activeSOS} accent="danger" />
-              <StatCard label="Check-ins" value={stats.checkIns} />
-              <StatCard label="Incidents" value={stats.incidents} />
-              <StatCard label="Avg Response" value={stats.avgResponse} />
+            {/* Summary cards */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <StatCard
+                label="Active SOS"
+                value={stats.activeSOS}
+                accent="danger"
+              />
+              <StatCard
+                label="Check-ins"
+                value={stats.checkIns}
+              />
+              <StatCard
+                label="Incidents"
+                value={stats.incidents}
+              />
+              <StatCard
+                label="Avg Response"
+                value={stats.avgResponse}
+              />
             </div>
 
-            <div>
-              <h2 className="font-semibold text-neutral-900 mb-3">Active SOS</h2>
+            {/* Active SOS */}
+            <section>
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-lg font-semibold text-neutral-900">
+                    Active SOS
+                  </h2>
+                  <p className="text-sm text-neutral-500 mt-1">
+                    Live emergency alerts requiring attention.
+                  </p>
+                </div>
+
+                {activeSOS.length > 0 && (
+                  <span className="text-sm font-medium text-danger-600">
+                    {activeSOS.length} active
+                  </span>
+                )}
+              </div>
+
               {activeSOS.length === 0 ? (
-                <EmptyState
-                  title="No active SOS alerts."
-                  description="Everything is currently under control."
-                />
+                <div className="bg-white border border-neutral-200 rounded-xl p-2">
+                  <EmptyState
+                    title="No active SOS alerts."
+                    description="Everything is currently under control."
+                  />
+                </div>
               ) : (
-                <div className="space-y-3">
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                   {activeSOS.map((sos) => (
                     <ActiveSOSCard key={sos.id} sos={sos} />
                   ))}
                 </div>
               )}
-            </div>
+            </section>
           </>
         )}
       </div>

@@ -32,10 +32,7 @@ function formatZone(location) {
 }
 
 function normalizeStatus(status) {
-  if (status === "PENDING") return "OPEN";
-  if (status === "ACKNOWLEDGED") return "INVESTIGATING";
-  if (status === "ESCALATED") return "INVESTIGATING";
-
+  // Keep the real backend status.
   return status;
 }
 
@@ -49,6 +46,7 @@ function normalizeIncident(incident) {
 
     status: normalizeStatus(incident.status),
 
+    // Keep this available for any detail page / future UI.
     backendStatus: incident.status,
 
     date: incident.createdAt,
@@ -82,7 +80,8 @@ export async function getIncidents() {
 export async function getIncidentDetails(id) {
   if (USE_MOCK) {
     await delay(300);
-    return mockIncidents.find((i) => i.id === id) || null;
+
+    return mockIncidents.find((incident) => incident.id === id) || null;
   }
 
   const res = await api.get(`/incidents/${id}`);
@@ -161,5 +160,7 @@ export function getMockTimeline(incident) {
 }
 
 function delay(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }

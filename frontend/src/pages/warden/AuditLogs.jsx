@@ -63,60 +63,63 @@ export default function AuditLogs() {
     }
   }
 
-  async function handleVerify() {
-    await runVerification();
-  }
-
   return (
     <DashboardLayout sidebarLinks={sidebarLinks}>
-      <div className="space-y-5">
+      <div className="w-full max-w-6xl mx-auto space-y-6">
+        {/* Header */}
         <div>
-          <h1 className="text-xl font-bold text-neutral-900">Audit Logs</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-neutral-900">
+            Audit Logs
+          </h1>
 
-          <p className="text-sm text-neutral-600 mt-1">
+          <p className="text-sm text-neutral-500 mt-1">
             Tamper-evident operational activity history.
           </p>
         </div>
 
+        {/* Verification */}
         {verification && (
-          <Card className="max-w-3xl">
-            <div className="flex items-center justify-between gap-4">
+          <Card className="w-full">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
-                <p className="text-sm text-neutral-600">Chain Integrity</p>
+                <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">
+                  Chain Integrity
+                </p>
 
                 <p
-                  className={
-                    verification.valid
-                      ? "text-success-600 font-bold text-lg"
-                      : "text-danger-600 font-bold text-lg"
-                  }
+                  className={`mt-1 text-lg font-bold ${
+                    verification.valid ? "text-success-600" : "text-danger-600"
+                  }`}
                 >
-                  {verification.valid ? "✓ VERIFIED" : "✗ INVALID"}
+                  {verification.valid
+                    ? "✓ Audit Chain Verified"
+                    : "✗ Audit Chain Invalid"}
                 </p>
               </div>
 
               <Button
                 variant="outline"
-                onClick={handleVerify}
+                onClick={runVerification}
                 disabled={verifying}
+                className="w-full sm:w-auto"
               >
                 {verifying ? "Verifying..." : "Verify Again"}
               </Button>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 mt-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-5 pt-4 border-t border-neutral-200">
               <div>
-                <p className="text-xs text-neutral-600">Records Verified</p>
+                <p className="text-xs text-neutral-500">Records Verified</p>
 
-                <p className="font-semibold text-neutral-900">
+                <p className="text-lg font-semibold text-neutral-900 mt-1">
                   {verification.totalLogs ?? 0}
                 </p>
               </div>
 
               <div>
-                <p className="text-xs text-neutral-600">Verification Time</p>
+                <p className="text-xs text-neutral-500">Verification Time</p>
 
-                <p className="font-semibold text-neutral-900 text-sm">
+                <p className="text-sm font-medium text-neutral-900 mt-1 break-words">
                   {verification.verifiedAt || "Not available"}
                 </p>
               </div>
@@ -131,7 +134,7 @@ export default function AuditLogs() {
         )}
 
         {loading && (
-          <div className="flex justify-center py-10">
+          <div className="flex justify-center py-16">
             <Spinner />
           </div>
         )}
@@ -139,10 +142,18 @@ export default function AuditLogs() {
         {!loading && error && <ErrorState onRetry={loadLogs} />}
 
         {!loading && !error && (
-          <Card className="w-full max-w-6xl">
+          <Card className="w-full overflow-hidden">
+            <div className="px-4 py-4 border-b border-neutral-200">
+              <p className="font-semibold text-neutral-900">Activity History</p>
+
+              <p className="text-xs text-neutral-500 mt-1">
+                {logs.length} record{logs.length !== 1 ? "s" : ""}
+              </p>
+            </div>
+
             <div className="overflow-x-auto">
-              <div className="min-w-[850px]">
-                <div className="grid grid-cols-[1.3fr_1.1fr_1.5fr_1.5fr_1fr] gap-4 px-2 pb-2 text-xs font-semibold text-neutral-600 uppercase">
+              <div className="min-w-[850px] p-4">
+                <div className="grid grid-cols-[1.3fr_1.1fr_1.5fr_1.5fr_1fr] gap-4 px-2 pb-3 text-[11px] font-semibold text-neutral-500 uppercase tracking-wide">
                   <span>Timestamp</span>
                   <span>Actor</span>
                   <span>Action</span>
@@ -152,8 +163,8 @@ export default function AuditLogs() {
 
                 <div className="divide-y divide-neutral-200">
                   {logs.length === 0 && (
-                    <div className="py-8">
-                      <p className="text-sm text-neutral-600">
+                    <div className="py-10 text-center">
+                      <p className="text-sm font-medium text-neutral-900">
                         No audit records found.
                       </p>
                     </div>
@@ -162,13 +173,17 @@ export default function AuditLogs() {
                   {logs.map((log) => (
                     <div
                       key={log.id}
-                      className="grid grid-cols-[1.3fr_1.1fr_1.5fr_1.5fr_1fr] gap-4 px-2 py-3 text-sm"
+                      className="grid grid-cols-[1.3fr_1.1fr_1.5fr_1.5fr_1fr] gap-4 px-2 py-3.5 text-sm"
                     >
-                      <span className="text-neutral-600">{log.timestamp}</span>
+                      <span className="text-neutral-500 break-words">
+                        {log.timestamp}
+                      </span>
 
-                      <span className="text-neutral-900">{log.actor}</span>
+                      <span className="text-neutral-900 font-medium break-words">
+                        {log.actor}
+                      </span>
 
-                      <span className="text-neutral-900 font-medium">
+                      <span className="text-neutral-900 font-medium break-words">
                         {log.action}
                       </span>
 
@@ -176,7 +191,7 @@ export default function AuditLogs() {
                         {log.resource}
                       </span>
 
-                      <span className="text-neutral-600">
+                      <span className="text-neutral-600 break-words">
                         {log.previousState
                           ? `${log.previousState} → ${log.newState}`
                           : log.newState || "—"}

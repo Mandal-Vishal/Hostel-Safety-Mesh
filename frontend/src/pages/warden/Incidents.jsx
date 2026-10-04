@@ -1,97 +1,188 @@
-import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import DashboardLayout from '../../components/layout/DashboardLayout'
-import Card from '../../components/ui/Card'
-import Badge from '../../components/ui/Badge'
-import Button from '../../components/ui/Button'
-import Spinner from '../../components/ui/Spinner'
-import ErrorState from '../../components/ui/ErrorState'
-import EmptyState from '../../components/ui/EmptyState'
-import { getIncidents } from '../../services/incidentService'
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import DashboardLayout from "../../components/layout/DashboardLayout";
+import Card from "../../components/ui/Card";
+import Badge from "../../components/ui/Badge";
+import Button from "../../components/ui/Button";
+import Spinner from "../../components/ui/Spinner";
+import ErrorState from "../../components/ui/ErrorState";
+import EmptyState from "../../components/ui/EmptyState";
+import { getIncidents } from "../../services/incidentService";
 
 const sidebarLinks = [
-  { to: '/warden/dashboard', label: 'Dashboard' },
-  { to: '/warden/sos', label: 'Active SOS' },
-  { to: '/warden/check-ins', label: 'Check-Ins' },
-  { to: '/warden/incidents', label: 'Incidents' },
-  { to: '/warden/devices', label: 'Devices' },
-  { to: '/warden/analytics', label: 'Analytics' },
-  { to: '/warden/audit-logs', label: 'Audit Logs' },
-]
+  { to: "/warden/dashboard", label: "Dashboard" },
+  { to: "/warden/sos", label: "Active SOS" },
+  { to: "/warden/check-ins", label: "Check-Ins" },
+  { to: "/warden/incidents", label: "Incidents" },
+  { to: "/warden/devices", label: "Devices" },
+  { to: "/warden/analytics", label: "Analytics" },
+  { to: "/warden/audit-logs", label: "Audit Logs" },
+];
 
-const filters = ['All', 'Open', 'Investigating', 'Resolved']
-const statusVariant = { OPEN: 'danger', INVESTIGATING: 'warning', RESOLVED: 'success' }
+const filters = ["All", "Pending", "Acknowledged", "Escalated", "Resolved"];
+
+const statusVariant = {
+  PENDING: "danger",
+  ACKNOWLEDGED: "warning",
+  ESCALATED: "danger",
+  RESOLVED: "success",
+};
 
 export default function Incidents() {
-  const [incidents, setIncidents] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(false)
-  const [filter, setFilter] = useState('All')
-  const navigate = useNavigate()
+  const [incidents, setIncidents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [filter, setFilter] = useState("All");
+
+  const navigate = useNavigate();
 
   useEffect(() => {
-    getIncidents()
-      .then(setIncidents)
-      .catch(() => setError(true))
-      .finally(() => setLoading(false))
-  }, [])
+    loadIncidents();
+  }, []);
 
-  const filtered = filter === 'All'
-    ? incidents
-    : incidents.filter((i) => i.status === filter.toUpperCase())
+  async function loadIncidents() {
+    setLoading(true);
+    setError(false);
+
+    try {
+      const data = await getIncidents();
+      setIncidents(data);
+    } catch (err) {
+      console.error("Failed to load incidents:", err);
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const filtered =
+    filter === "All"
+      ? incidents
+      : incidents.filter(
+          (incident) => incident.status === filter.toUpperCase(),
+        );
 
   return (
     <DashboardLayout sidebarLinks={sidebarLinks}>
-      <h1 className="text-xl font-bold text-neutral-900 mb-4">Incident Reports</h1>
+      <div className="w-full max-w-6xl mx-auto">
+        {/* Header */}
+        <div className="mb-6">
+          <h1 className="text-xl sm:text-2xl font-bold text-neutral-900">
+            Incident Reports
+          </h1>
 
-      <div className="flex gap-2 mb-4">
-        {filters.map((f) => (
-          <button
-            key={f}
-            onClick={() => setFilter(f)}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
-              filter === f ? 'bg-primary-600 text-white' : 'bg-neutral-100 text-neutral-600'
-            }`}
-          >
-            {f}
-          </button>
-        ))}
-      </div>
-
-      {loading && (
-        <div className="flex justify-center py-10">
-          <Spinner />
+          <p className="text-sm text-neutral-500 mt-1">
+            Review and monitor reported safety incidents.
+          </p>
         </div>
-      )}
 
-      {!loading && error && <ErrorState />}
+        {/* Filters */}
+        <div className="flex flex-wrap gap-2 mb-6">
+          {filters.map((item) => {
+            const active = filter === item;
 
-      {!loading && !error && filtered.length === 0 && (
-        <EmptyState title="No incidents found." />
-      )}
-
-      {!loading && !error && filtered.length > 0 && (
-        <div className="space-y-3 max-w-md">
-          {filtered.map((inc) => (
-            <Card key={inc.id}>
-              <div className="flex items-center justify-between mb-1">
-                <p className="font-semibold text-neutral-900">{inc.id}</p>
-                <Badge variant={statusVariant[inc.status] || 'neutral'}>{inc.status}</Badge>
-              </div>
-              <p className="text-sm text-neutral-900">{inc.type}</p>
-              <p className="text-sm text-neutral-600">{inc.zone}</p>
-              <p className="text-xs text-neutral-600 mt-1">Reported: {inc.date}</p>
-              <Button
-                variant="outline"
-                className="mt-2"
-                onClick={() => navigate(`/warden/incidents/${inc.id}`)}
+            return (
+              <button
+                key={item}
+                type="button"
+                onClick={() => setFilter(item)}
+                className={`px-3.5 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  active
+                    ? "bg-primary-600 text-white"
+                    : "bg-white border border-neutral-200 text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900"
+                }`}
               >
-                View
-              </Button>
-            </Card>
-          ))}
+                {item}
+              </button>
+            );
+          })}
         </div>
-      )}
+
+        {/* Loading */}
+        {loading && (
+          <div className="flex justify-center py-16">
+            <Spinner />
+          </div>
+        )}
+
+        {/* Error */}
+        {!loading && error && (
+          <div className="max-w-xl">
+            <ErrorState onRetry={loadIncidents} />
+          </div>
+        )}
+
+        {/* Empty */}
+        {!loading && !error && filtered.length === 0 && (
+          <div className="bg-white border border-neutral-200 rounded-xl">
+            <EmptyState
+              title={
+                filter === "All"
+                  ? "No incidents found."
+                  : `No ${filter.toLowerCase()} incidents found.`
+              }
+              description="Incident records will appear here when available."
+            />
+          </div>
+        )}
+
+        {/* Incident cards */}
+        {!loading && !error && filtered.length > 0 && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {filtered.map((incident) => (
+              <Card key={incident.id} className="h-full">
+                <div className="flex items-start justify-between gap-3 mb-4">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-neutral-900 truncate">
+                      {incident.id}
+                    </p>
+
+                    <p className="text-sm text-neutral-600 mt-1">
+                      {incident.type}
+                    </p>
+                  </div>
+
+                  <Badge variant={statusVariant[incident.status] || "neutral"}>
+                    {incident.status}
+                  </Badge>
+                </div>
+
+                <div className="space-y-2">
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-neutral-500">
+                      Location
+                    </p>
+
+                    <p className="text-sm text-neutral-700 mt-1 break-words">
+                      {incident.zone}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-neutral-500">
+                      Reported
+                    </p>
+
+                    <p className="text-sm text-neutral-700 mt-1">
+                      {incident.date}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-5">
+                  <Button
+                    variant="outline"
+                    className="w-full sm:w-auto"
+                    onClick={() => navigate(`/warden/incidents/${incident.id}`)}
+                  >
+                    View Incident
+                  </Button>
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
     </DashboardLayout>
-  )
+  );
 }

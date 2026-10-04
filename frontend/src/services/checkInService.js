@@ -1,6 +1,5 @@
 import api from "./api";
 import { USE_MOCK } from "./config";
-
 import { mockZoneSummary, mockPendingResidents } from "../mock/pendingCheckins";
 
 let mockState = {
@@ -23,6 +22,10 @@ function formatZone(location) {
 
   if (location.floor !== null && location.floor !== undefined) {
     parts.push(`Floor ${location.floor}`);
+  }
+
+  if (location.room) {
+    parts.push(`Room ${location.room}`);
   }
 
   if (location.zone) {
@@ -68,6 +71,10 @@ function normalizeMyCheckIn(checkIn) {
     source: checkIn.source?.type || null,
   };
 }
+
+/* ---------------------------------------------------------
+   RESIDENT
+--------------------------------------------------------- */
 
 export async function getCurrentStatus() {
   if (USE_MOCK) {
@@ -148,15 +155,14 @@ export async function checkIn() {
   }
 }
 
-/**
- * Create tonight's EXPECTED check-in records.
- *
- * This is safe to call repeatedly because the backend
- * uses an upsert with the resident + periodKey unique key.
- */
+/* ---------------------------------------------------------
+   WARDEN
+--------------------------------------------------------- */
+
 export async function generateExpectedCheckIns() {
   if (USE_MOCK) {
     await delay(300);
+
     return {
       success: true,
       count: mockPendingResidents.length,
@@ -168,10 +174,6 @@ export async function generateExpectedCheckIns() {
   return res.data;
 }
 
-/**
- * Fetch all operational check-ins, then keep only
- * the records belonging to today's night period.
- */
 export async function getTonightCheckIns() {
   if (USE_MOCK) {
     await delay(300);
@@ -182,8 +184,16 @@ export async function getTonightCheckIns() {
       zone: resident.zone || null,
       resident: {
         id: resident.id,
-        firstName: resident.name?.split(" ")[0] || "Resident",
-        lastName: resident.name?.split(" ").slice(1).join(" ") || "",
+        firstName:
+          resident.firstName ||
+          resident.name?.split(" ")[0] ||
+          "Resident",
+        lastName:
+          resident.lastName ||
+          resident.name?.split(" ").slice(1).join(" ") ||
+          "",
+        hostel: resident.hostel || null,
+        currentZone: resident.currentZone || null,
       },
       scheduledAt: null,
       checkedInAt: null,
@@ -194,9 +204,32 @@ export async function getTonightCheckIns() {
 
   const todayKey = getTodayKey();
 
-  return (res.data.checkIns || []).filter(
-    (item) => getDateKeyFromISTString(item.scheduledAt) === todayKey,
-  );
+  return (res.data.checkIns || [])
+    .filter(
+      (item) =>
+        getDateKeyFromISTString(item.scheduledAt) === todayKey
+    )
+    .map((item) => {
+      const resident = item.residentId || {};
+
+      return {
+        ...item,
+
+        // Normalize populated MongoDB residentId
+        // into the frontend-friendly resident object.
+        resident: {
+          id: resident._id || resident.id || item.residentId,
+          firstName: resident.firstName || "",
+          lastName: resident.lastName || "",
+          email: resident.email || "",
+
+          hostel: resident.hostel || null,
+          currentZone: resident.currentZone || null,
+
+          role: resident.role || "resident",
+        },
+      };
+    });
 }
 
 function getResidentLocation(item) {
@@ -211,10 +244,6 @@ export async function getPendingSummary() {
     return [...mockZoneSummary];
   }
 
-  /**
-   * Make sure tonight's expected records exist.
-   * The backend uses upsert, so this does not create duplicates.
-   */
   await generateExpectedCheckIns();
 
   const checkIns = await getTonightCheckIns();
@@ -232,10 +261,6 @@ export async function getPendingSummary() {
       missed: 0,
     };
 
-    /**
-     * "Expected" means residents scheduled
-     * for tonight, regardless of their current state.
-     */
     existing.expected += 1;
 
     if (item.status === "CHECKED_IN") {
@@ -261,7 +286,9 @@ export async function getPendingResidents(zone) {
     await delay(300);
 
     return zone
-      ? mockPendingResidents.filter((r) => r.zone.startsWith(zone))
+      ? mockPendingResidents.filter((r) =>
+          r.zone.startsWith(zone)
+        )
       : [...mockPendingResidents];
   }
 
@@ -270,24 +297,50 @@ export async function getPendingResidents(zone) {
   return checkIns
     .filter((item) => item.status === "EXPECTED")
     .map((item) => {
-      const location = getResidentLocation(item);
+      const resident = item.resident || {};
+
+      const location =
+        item.zone ||
+        resident.currentZone ||
+        resident.hostel ||
+        {};
 
       return {
-        id: item.resident?.id || item.resident?.email || item.id,
+        id: resident.id || item.id,
+
+        firstName: resident.firstName || "",
+        lastName: resident.lastName || "",
 
         name:
-          [item.resident?.firstName, item.resident?.lastName]
+          [resident.firstName, resident.lastName]
             .filter(Boolean)
             .join(" ") || "Resident",
 
-        zone: formatZone(location),
+        building: location.building || null,
+        floor: location.floor ?? null,
+
+        // Room comes from the resident's hostel profile
+        room: resident.hostel?.room || null,
+
+        zone:
+          formatZone(location) || "Location unavailable",
 
         status: item.status,
+
+        scheduledAt: item.scheduledAt || null,
+        checkedInAt: item.checkedInAt || null,
+
+        source: item.source?.type || null,
       };
     })
-    .filter((resident) => !zone || resident.zone === zone);
+    .filter(
+      (resident) =>
+        !zone || resident.zone === zone
+    );
 }
 
 function delay(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }

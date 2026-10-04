@@ -13,6 +13,21 @@ const mobileLinks = [
   { to: "/resident/incidents", label: "Incidents" },
 ];
 
+function formatLocation(location) {
+  if (!location) return "Location unavailable";
+
+  return [
+    location.building,
+    location.floor !== null && location.floor !== undefined
+      ? `Floor ${location.floor}`
+      : null,
+    location.room ? `Room ${location.room}` : null,
+    location.zone || null,
+  ]
+    .filter(Boolean)
+    .join(" • ");
+}
+
 export default function CheckIn() {
   const { user } = useAuth();
 
@@ -31,12 +46,7 @@ export default function CheckIn() {
     getCurrentStatus()
       .then((data) => {
         setStatus(data);
-
-        if (data.checkedIn) {
-          setView("already");
-        } else {
-          setView("not_checked_in");
-        }
+        setView(data.checkedIn ? "already" : "not_checked_in");
       })
       .catch(() => {
         setErrorMessage("Unable to load check-in status.");
@@ -72,101 +82,227 @@ export default function CheckIn() {
   }
 
   const location = user?.currentZone || user?.hostel || null;
+  const locationLabel = formatLocation(location);
 
-  const zoneLabel = location
-    ? [
-        location.building,
-        location.floor !== null && location.floor !== undefined
-          ? `Floor ${location.floor}`
-          : null,
-        location.zone,
-      ]
-        .filter(Boolean)
-        .join(" • ")
-    : "Your registered hostel zone";
+  const displayName =
+    [user?.firstName, user?.lastName].filter(Boolean).join(" ") || "Resident";
 
   return (
     <DashboardLayout mobileLinks={mobileLinks}>
-      <div className="max-w-md mx-auto">
-        <Card className="text-center">
-          <p className="text-xs font-semibold tracking-wide text-neutral-600 uppercase mb-4">
-            Night Check-In
+      <div className="w-full max-w-xl mx-auto space-y-5">
+        {/* Header */}
+        <div>
+          <p className="text-sm font-medium text-primary-600">
+            Resident Portal
           </p>
 
-          {view === "loading" && (
-            <div className="flex justify-center py-6">
-              <Spinner />
+          <h1 className="text-2xl sm:text-3xl font-bold text-neutral-900 mt-1">
+            Night Check-In
+          </h1>
+
+          <p className="text-sm text-neutral-500 mt-2">
+            Confirm that you have safely returned to your hostel.
+          </p>
+        </div>
+
+        {/* Resident information */}
+        <Card>
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 shrink-0 rounded-lg bg-neutral-100 flex items-center justify-center text-neutral-700">
+              ◉
             </div>
-          )}
 
-          {view === "not_checked_in" && (
-            <>
-              <p className="text-neutral-900 font-medium">
-                You haven't checked in yet.
+            <div className="min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                Resident
               </p>
 
-              <p className="text-neutral-600 text-sm mt-2">Zone: {zoneLabel}</p>
+              <p className="font-semibold text-neutral-900 mt-1">
+                {displayName}
+              </p>
 
-              <Button className="mt-4" onClick={handleCheckIn}>
-                Check In
-              </Button>
-            </>
-          )}
-
-          {view === "checking_in" && (
-            <div className="py-4">
-              <Spinner className="mx-auto" />
-              <p className="text-neutral-600 text-sm mt-3">
-                Checking you in...
+              <p className="text-sm text-neutral-500 mt-1 break-words">
+                {locationLabel}
               </p>
             </div>
-          )}
+          </div>
+        </Card>
 
-          {view === "success" && (
-            <>
-              <p className="text-success-600 font-semibold text-lg">
-                ✓ Check-in successful
-              </p>
-
-              <p className="text-neutral-600 text-sm mt-2">
-                Checked in at: {status?.checkedInAt}
-              </p>
-
-              <p className="text-neutral-600 text-sm">Zone: {zoneLabel}</p>
-
-              <p className="text-success-600 font-medium mt-2">
-                Status: SAFE / CHECKED IN
-              </p>
-            </>
-          )}
-
-          {view === "already" && (
-            <>
-              <p className="text-success-600 font-medium">
-                ✓ You're already checked in tonight.
-              </p>
-
-              {status?.checkedInAt && (
-                <p className="text-neutral-600 text-sm mt-2">
-                  Checked in at: {status.checkedInAt}
+        {/* Main status */}
+        <Card className="overflow-hidden">
+          <div className="text-center px-2 sm:px-6 py-4 sm:py-6">
+            {view === "loading" && (
+              <div className="py-8">
+                <Spinner />
+                <p className="text-sm text-neutral-500 mt-3">
+                  Loading your check-in status...
                 </p>
-              )}
-            </>
-          )}
+              </div>
+            )}
 
-          {view === "error" && (
-            <>
-              <p className="text-danger-600 font-medium">
-                Unable to complete check-in.
-              </p>
+            {view === "not_checked_in" && (
+              <>
+                <div className="mx-auto w-16 h-16 rounded-full bg-warning-50 flex items-center justify-center">
+                  <span className="text-warning-600 text-2xl">!</span>
+                </div>
 
-              <p className="text-neutral-600 text-sm mt-1">{errorMessage}</p>
+                <p className="text-lg font-semibold text-neutral-900 mt-4">
+                  You haven't checked in yet
+                </p>
 
-              <Button variant="outline" className="mt-4" onClick={loadStatus}>
-                Retry
-              </Button>
-            </>
-          )}
+                <p className="text-sm text-neutral-500 mt-2">
+                  Please confirm your safe return during the night check-in
+                  period.
+                </p>
+
+                <div className="bg-neutral-50 rounded-xl p-4 mt-5 text-left">
+                  <p className="text-xs uppercase tracking-wide text-neutral-500">
+                    Check-In Location
+                  </p>
+
+                  <p className="text-sm font-medium text-neutral-900 mt-1 break-words">
+                    {locationLabel}
+                  </p>
+                </div>
+
+                <Button className="w-full mt-5" onClick={handleCheckIn}>
+                  Check In Now
+                </Button>
+              </>
+            )}
+
+            {view === "checking_in" && (
+              <div className="py-8">
+                <Spinner />
+
+                <p className="text-lg font-semibold text-neutral-900 mt-4">
+                  Checking you in...
+                </p>
+
+                <p className="text-sm text-neutral-500 mt-1">
+                  Please keep this page open.
+                </p>
+              </div>
+            )}
+
+            {view === "success" && (
+              <>
+                <div className="mx-auto w-16 h-16 rounded-full bg-success-50 flex items-center justify-center">
+                  <span className="text-success-600 text-2xl">✓</span>
+                </div>
+
+                <p className="text-xl font-bold text-success-600 mt-4">
+                  Check-In Successful
+                </p>
+
+                <p className="text-sm text-neutral-500 mt-2">
+                  Your safe-return status has been recorded.
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-5 text-left">
+                  <div className="rounded-xl bg-neutral-50 p-4">
+                    <p className="text-xs uppercase tracking-wide text-neutral-500">
+                      Checked In At
+                    </p>
+
+                    <p className="text-sm font-semibold text-neutral-900 mt-1">
+                      {status?.checkedInAt || "Just now"}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl bg-success-50 p-4">
+                    <p className="text-xs uppercase tracking-wide text-neutral-500">
+                      Status
+                    </p>
+
+                    <p className="text-sm font-semibold text-success-600 mt-1">
+                      SAFE / CHECKED IN
+                    </p>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-neutral-200 p-4 mt-3 text-left">
+                  <p className="text-xs uppercase tracking-wide text-neutral-500">
+                    Recorded Location
+                  </p>
+
+                  <p className="text-sm font-medium text-neutral-900 mt-1 break-words">
+                    {locationLabel}
+                  </p>
+                </div>
+              </>
+            )}
+
+            {view === "already" && (
+              <>
+                <div className="mx-auto w-16 h-16 rounded-full bg-success-50 flex items-center justify-center">
+                  <span className="text-success-600 text-2xl">✓</span>
+                </div>
+
+                <p className="text-xl font-bold text-success-600 mt-4">
+                  You're Checked In
+                </p>
+
+                <p className="text-sm text-neutral-500 mt-2">
+                  Your safe-return check-in for tonight is already recorded.
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-5 text-left">
+                  <div className="rounded-xl bg-neutral-50 p-4">
+                    <p className="text-xs uppercase tracking-wide text-neutral-500">
+                      Check-In Time
+                    </p>
+
+                    <p className="text-sm font-semibold text-neutral-900 mt-1">
+                      {status?.checkedInAt || "Recorded"}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl bg-success-50 p-4">
+                    <p className="text-xs uppercase tracking-wide text-neutral-500">
+                      Status
+                    </p>
+
+                    <p className="text-sm font-semibold text-success-600 mt-1">
+                      SAFE / CHECKED IN
+                    </p>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-neutral-200 p-4 mt-3 text-left">
+                  <p className="text-xs uppercase tracking-wide text-neutral-500">
+                    Registered Location
+                  </p>
+
+                  <p className="text-sm font-medium text-neutral-900 mt-1 break-words">
+                    {locationLabel}
+                  </p>
+                </div>
+              </>
+            )}
+
+            {view === "error" && (
+              <>
+                <div className="mx-auto w-16 h-16 rounded-full bg-danger-50 flex items-center justify-center">
+                  <span className="text-danger-600 text-2xl">!</span>
+                </div>
+
+                <p className="text-lg font-semibold text-danger-600 mt-4">
+                  Check-In Unavailable
+                </p>
+
+                <p className="text-sm text-neutral-600 mt-2">{errorMessage}</p>
+
+                <Button
+                  variant="outline"
+                  className="w-full sm:w-auto mt-5"
+                  onClick={loadStatus}
+                >
+                  Try Again
+                </Button>
+              </>
+            )}
+          </div>
         </Card>
       </div>
     </DashboardLayout>
