@@ -1,50 +1,21 @@
 const CheckIn = require("../models/checkIn.model");
 const User = require("../models/user.model");
-
 const formatDateIST = require("../utils/formatDate");
 const { getCurrentNightPeriod } = require("../utils/checkinPeriod");
 
-const { sanitizeCheckIn, sanitizeCheckIns } = require("../utils/privacy");
-
-const ALLOWED_CHECK_IN_STATUSES = ["EXPECTED", "CHECKED_IN", "MISSED"];
-
-/**
- * Format one privacy-filtered check-in.
- */
-const formatSafeCheckIn = (checkIn, role) => {
-  const data = sanitizeCheckIn(checkIn, role);
-
-  if (!data) {
-    return null;
-  }
+const formatCheckIn = (checkIn) => {
+  const data = checkIn.toObject ? checkIn.toObject() : checkIn;
 
   return {
     ...data,
-
     scheduledAt: formatDateIST(data.scheduledAt),
-
     checkedInAt: formatDateIST(data.checkedInAt),
+    createdAt: formatDateIST(data.createdAt),
+    updatedAt: formatDateIST(data.updatedAt),
   };
 };
 
-/**
- * Format multiple privacy-filtered check-ins.
- */
-const formatSafeCheckIns = (checkIns, role) => {
-  return sanitizeCheckIns(checkIns, role).map((data) => ({
-    ...data,
-
-    scheduledAt: formatDateIST(data.scheduledAt),
-
-    checkedInAt: formatDateIST(data.checkedInAt),
-  }));
-};
-
-/**
- * ---------------------------------------------------------
- * RESIDENT CHECK-IN
- * ---------------------------------------------------------
- */
+// Resident check-in
 const checkIn = async (req, res) => {
   try {
     const period = getCurrentNightPeriod();
@@ -52,57 +23,33 @@ const checkIn = async (req, res) => {
     if (!period.inPeriod) {
       return res.status(400).json({
         success: false,
-
         message: `Check-in is allowed between ${period.start} and ${period.end}`,
       });
     }
 
-    const residentId = req.user._id;
-
     const existing = await CheckIn.findOne({
-      residentId,
+      residentId: req.user._id,
       periodKey: period.periodKey,
     });
 
-    /**
-     * Never allow a second check-in
-     * for the same night.
-     */
     if (existing?.status === "CHECKED_IN") {
       return res.status(409).json({
         success: false,
-
         message: "You have already checked in",
       });
     }
 
-    /**
-     * The scheduled time is controlled by
-     * the configured night period.
-     */
     const scheduledAt = new Date(
       `${period.periodKey}T${period.start}:00+05:30`,
     );
 
     const checkedInAt = new Date();
 
-    /**
-     * SECURITY:
-     *
-     * Never trust a location supplied by
-     * the client.
-     */
-    const trustedLocation = req.user.currentZone || req.user.hostel || null;
-
     const data = {
-      residentId,
-
+      residentId: req.user._id,
       periodKey: period.periodKey,
-
       scheduledAt,
-
       checkedInAt,
-
       status: "CHECKED_IN",
 
       source: {
@@ -110,123 +57,55 @@ const checkIn = async (req, res) => {
         nodeId: null,
       },
 
-      zone: trustedLocation || null,
+      zone: req.user.currentZone || req.user.hostel || {},
     };
 
-    let record;
-
-    if (existing) {
-      record = await CheckIn.findByIdAndUpdate(
-        existing._id,
-        {
-          $set: data,
-        },
-        {
+    const record = existing
+      ? await CheckIn.findByIdAndUpdate(existing._id, data, {
           new: true,
           runValidators: true,
-        },
-      );
-    } else {
-      try {
-        record = await CheckIn.create(data);
-      } catch (error) {
-        /**
-         * Another request may have created
-         * the unique record between our find()
-         * and create().
-         */
-        if (error?.code === 11000) {
-          return res.status(409).json({
-            success: false,
+        })
+      : await CheckIn.create(data);
 
-            message: "You have already checked in",
-          });
-        }
-
-        throw error;
-      }
-    }
-
-    /**
-     * ---------------------------------------------------------
-     * REAL-TIME WARDEN UPDATE
-     * ---------------------------------------------------------
-     *
-     * The resident's check-in has now been persisted.
-     * Notify operational staff through Socket.IO.
-     *
-     * Only the privacy-filtered Warden representation is
-     * emitted. Internal fields are never exposed.
-     */
-    await record.populate(
-      "residentId",
-      "firstName lastName role hostel currentZone",
-    );
-
-    const wardenCheckIn = formatSafeCheckIn(record, "warden");
-
-    const io = req.app.get("io");
-
-    if (io) {
-      io.to("role:warden").emit("checkin:updated", {
-        checkIn: wardenCheckIn,
-      });
-    }
-
-    return res.status(200).json({
+    res.status(200).json({
       success: true,
-
       message: "Check-in successful",
-
-      checkIn: formatSafeCheckIn(record, "resident"),
+      checkIn: formatCheckIn(record),
     });
   } catch (error) {
     console.error("Check-in error:", error);
 
-    return res.status(500).json({
+    res.status(500).json({
       success: false,
-
       message: "Failed to check in",
     });
   }
 };
 
-/**
- * ---------------------------------------------------------
- * RESIDENT CHECK-IN HISTORY
- * ---------------------------------------------------------
- */
+// Resident's own check-ins
 const getMyCheckIns = async (req, res) => {
   try {
     const checkIns = await CheckIn.find({
       residentId: req.user._id,
     })
-      .sort({
-        createdAt: -1,
-      })
+      .sort({ createdAt: -1 })
       .limit(50);
 
-    return res.json({
+    res.json({
       success: true,
-
-      checkIns: formatSafeCheckIns(checkIns, "resident"),
+      checkIns: checkIns.map(formatCheckIn),
     });
   } catch (error) {
     console.error("Get my check-ins error:", error);
 
-    return res.status(500).json({
+    res.status(500).json({
       success: false,
-
       message: "Failed to fetch check-ins",
     });
   }
 };
 
-/**
- * ---------------------------------------------------------
- * GENERATE EXPECTED CHECK-INS
- * ---------------------------------------------------------
- */
+// Generate EXPECTED check-ins for all residents
 const generateExpectedCheckIns = async (req, res) => {
   try {
     const period = getCurrentNightPeriod();
@@ -234,7 +113,7 @@ const generateExpectedCheckIns = async (req, res) => {
     const residents = await User.find({
       role: "resident",
       isActive: true,
-    }).select("_id");
+    }).select("_id hostel currentZone");
 
     const scheduledAt = new Date(
       `${period.periodKey}T${period.start}:00+05:30`,
@@ -244,29 +123,24 @@ const generateExpectedCheckIns = async (req, res) => {
       updateOne: {
         filter: {
           residentId: resident._id,
-
           periodKey: period.periodKey,
         },
 
         update: {
           $setOnInsert: {
             residentId: resident._id,
-
             periodKey: period.periodKey,
-
             scheduledAt,
-
             checkedInAt: null,
-
             status: "EXPECTED",
 
             source: {
               type: "RESIDENT_APP",
-
               nodeId: null,
             },
 
-            zone: null,
+            // Store the resident's trusted registered/current location
+            zone: resident.currentZone || resident.hostel || {},
           },
         },
 
@@ -278,33 +152,24 @@ const generateExpectedCheckIns = async (req, res) => {
       await CheckIn.bulkWrite(operations);
     }
 
-    return res.json({
+    res.json({
       success: true,
-
       message: "Expected check-ins generated",
-
       count: residents.length,
-
       periodKey: period.periodKey,
-
       scheduledAt: formatDateIST(scheduledAt),
     });
   } catch (error) {
     console.error("Generate check-ins error:", error);
 
-    return res.status(500).json({
+    res.status(500).json({
       success: false,
-
       message: "Failed to generate expected check-ins",
     });
   }
 };
 
-/**
- * ---------------------------------------------------------
- * EVALUATE MISSED CHECK-INS
- * ---------------------------------------------------------
- */
+// Mark uncompleted check-ins as MISSED after the period ends
 const evaluateMissedCheckIns = async (req, res) => {
   try {
     const period = getCurrentNightPeriod();
@@ -316,7 +181,6 @@ const evaluateMissedCheckIns = async (req, res) => {
     if (now < endTime) {
       return res.status(400).json({
         success: false,
-
         message: `Check-in period has not ended yet. It ends at ${formatDateIST(
           endTime,
         )}`,
@@ -326,7 +190,6 @@ const evaluateMissedCheckIns = async (req, res) => {
     const result = await CheckIn.updateMany(
       {
         periodKey: period.periodKey,
-
         status: "EXPECTED",
       },
       {
@@ -336,65 +199,47 @@ const evaluateMissedCheckIns = async (req, res) => {
       },
     );
 
-    return res.json({
+    res.json({
       success: true,
-
       message: "Missed check-ins evaluated",
-
       missedCount: result.modifiedCount,
     });
   } catch (error) {
     console.error("Missed check-in error:", error);
 
-    return res.status(500).json({
+    res.status(500).json({
       success: false,
-
       message: "Failed to evaluate missed check-ins",
     });
   }
 };
 
-/**
- * ---------------------------------------------------------
- * WARDEN / SECURITY CHECK-IN VIEW
- * ---------------------------------------------------------
- */
+// Warden / security view
 const getAllCheckIns = async (req, res) => {
   try {
     const filter = {};
 
     if (req.query.status) {
-      const status = String(req.query.status).toUpperCase();
-
-      if (!ALLOWED_CHECK_IN_STATUSES.includes(status)) {
-        return res.status(400).json({
-          success: false,
-
-          message: "Invalid check-in status",
-        });
-      }
-
-      filter.status = status;
+      filter.status = req.query.status;
     }
 
     const checkIns = await CheckIn.find(filter)
-      .populate("residentId", "firstName lastName email role hostel")
-      .sort({
-        createdAt: -1,
-      })
+      .populate(
+        "residentId",
+        "firstName lastName email hostel currentZone role",
+      )
+      .sort({ createdAt: -1 })
       .limit(100);
 
-    return res.json({
+    res.json({
       success: true,
-
-      checkIns: formatSafeCheckIns(checkIns, req.user.role),
+      checkIns: checkIns.map(formatCheckIn),
     });
   } catch (error) {
     console.error("Get all check-ins error:", error);
 
-    return res.status(500).json({
+    res.status(500).json({
       success: false,
-
       message: "Failed to fetch check-ins",
     });
   }
