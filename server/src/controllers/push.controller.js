@@ -1,4 +1,5 @@
 const PushSubscription = require("../models/pushSubscription.model");
+const { sendPushToUser } = require("../services/push.service");
 
 const getPublicKey = async (req, res) => {
   try {
@@ -106,9 +107,33 @@ const unsubscribe = async (req, res) => {
     });
   }
 };
+const sendTestPush = async (req, res) => {
+  try {
+    await sendPushToUser(req.user._id, {
+      title: "Hostel Safety Mesh",
+      body: "Real push notification is working!",
+      url: "/",
+      tag: "push-test",
+      requireInteraction: true,
+    });
+
+    res.json({
+      success: true,
+      message: "Test push sent",
+    });
+  } catch (error) {
+    console.error("Test push error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to send test push",
+    });
+  }
+};
 
 module.exports = {
   getPublicKey,
   subscribe,
   unsubscribe,
+  sendTestPush,
 };

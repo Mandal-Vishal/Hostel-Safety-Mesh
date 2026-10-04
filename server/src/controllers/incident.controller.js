@@ -119,13 +119,16 @@ const createSOS = async (req, res) => {
       },
     });
 
-    await sendPushToRoles(["warden"], {
+    sendPushToRoles(["warden"], {
       title: "New SOS Alert",
       body: `Immediate assistance required • ${
         location.building || "Unknown Block"
       } • Floor ${location.floor ?? "-"}`,
       url: "/warden/active-sos",
       tag: `sos-${incident.incidentId}`,
+      requireInteraction: true,
+    }).catch((error) => {
+      console.error("Warden SOS push failed:", error.message);
     });
 
     await incident.populate("residentId", "firstName lastName email role");
@@ -400,11 +403,14 @@ const acknowledgeIncident = async (req, res) => {
       },
     });
 
-    await sendPushToUser(incident.residentId, {
+    sendPushToUser(incident.residentId, {
       title: "SOS Acknowledged",
       body: "Your SOS has been acknowledged by the hostel team.",
       url: "/resident/sos",
       tag: `sos-${incident.incidentId}`,
+      requireInteraction: true,
+    }).catch((error) => {
+      console.error("Resident acknowledgement push failed:", error.message);
     });
 
     await incident.populate("residentId", "firstName lastName email role");
@@ -548,11 +554,16 @@ const escalateIncident = async (req, res) => {
       },
     });
 
-    await sendPushToUser(incident.residentId, {
-      title: "SOS Resolved",
-      body: "Your SOS incident has been resolved by the hostel team.",
-      url: "/resident/sos",
+    sendPushToRoles(["security"], {
+      title: "SOS Escalated",
+      body: `Immediate attention required • ${
+        incident.location?.building || "Unknown Block"
+      } • Floor ${incident.location?.floor ?? "-"}`,
+      url: "/security/active-sos",
       tag: `sos-${incident.incidentId}`,
+      requireInteraction: true,
+    }).catch((error) => {
+      console.error("Security escalation push failed:", error.message);
     });
 
     await incident.populate("residentId", "firstName lastName email role");
@@ -678,6 +689,16 @@ const resolveIncident = async (req, res) => {
       metadata: {
         reason: normalizedNote,
       },
+    });
+
+    sendPushToUser(incident.residentId, {
+      title: "SOS Resolved",
+      body: "Your SOS incident has been resolved by the hostel team.",
+      url: "/resident/sos",
+      tag: `sos-${incident.incidentId}`,
+      requireInteraction: false,
+    }).catch((error) => {
+      console.error("Resident resolution push failed:", error.message);
     });
 
     await incident.populate("residentId", "firstName lastName email role");

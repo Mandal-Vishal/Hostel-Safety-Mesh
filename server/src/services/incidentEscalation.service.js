@@ -1,6 +1,6 @@
 const Incident = require("../models/incident.model");
 const User = require("../models/user.model");
-
+const { sendPushToUser, sendPushToRoles } = require("./push.service");
 const { createAuditLog } = require("./audit.service");
 
 const formatDateIST = require("../utils/formatDate");
@@ -180,6 +180,42 @@ const escalatePendingIncidents = async (io) => {
           escalatedToRole: "SECURITY",
         },
       });
+
+      sendPushToRoles(["warden"], {
+        title: "SOS Automatically Escalated",
+        body: `No acknowledgement received • ${
+          updatedIncident.location?.building || "Unknown Block"
+        } • Floor ${updatedIncident.location?.floor ?? "-"}`,
+        url: "/warden/active-sos",
+        tag: `sos-${updatedIncident.incidentId}`,
+        requireInteraction: true,
+      }).catch((error) => {
+        console.error("Warden auto-escalation push failed:", error.message);
+      });
+
+      sendPushToRoles(["security"], {
+        title: "SOS Automatically Escalated",
+        body: `Immediate attention required • ${
+          updatedIncident.location?.building || "Unknown Block"
+        } • Floor ${updatedIncident.location?.floor ?? "-"}`,
+        url: "/security/active-sos",
+        tag: `sos-${updatedIncident.incidentId}`,
+        requireInteraction: true,
+      }).catch((error) => {
+        console.error("Security auto-escalation push failed:", error.message);
+      });
+
+      if (updatedIncident.residentId?._id) {
+        sendPushToUser(updatedIncident.residentId._id, {
+          title: "SOS Escalated",
+          body: "Your SOS was automatically escalated because it was not acknowledged in time.",
+          url: "/resident/sos",
+          tag: `sos-${updatedIncident.incidentId}`,
+          requireInteraction: true,
+        }).catch((error) => {
+          console.error("Resident auto-escalation push failed:", error.message);
+        });
+      }
 
       /**
        * Each role receives its own
