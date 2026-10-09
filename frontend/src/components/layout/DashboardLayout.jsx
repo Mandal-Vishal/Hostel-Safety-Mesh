@@ -24,6 +24,19 @@ export default function DashboardLayout({
     enablePushNotifications();
   }, [user]);
 
+  const finalSidebarLinks =
+    user?.role === "warden" && sidebarLinks
+      ? sidebarLinks.some((link) => link.to === "/warden/residents")
+        ? sidebarLinks
+        : [
+            ...sidebarLinks,
+            {
+              to: "/warden/residents",
+              label: "Residents",
+            },
+          ]
+      : sidebarLinks;
+
   return (
     <div className="min-h-screen bg-neutral-50 flex flex-col">
       <Navbar />
@@ -31,7 +44,7 @@ export default function DashboardLayout({
       {mobileLinks && <ResidentTopNav />}
 
       <div className="flex flex-1">
-        {sidebarLinks && <Sidebar links={sidebarLinks} />}
+        {finalSidebarLinks && <Sidebar links={finalSidebarLinks} />}
 
         <main className="flex-1 min-w-0 px-3 py-4 sm:px-5 sm:py-6 lg:px-7 lg:py-7 pb-20 md:pb-6">
           <div className="w-full">{children}</div>

@@ -7,6 +7,7 @@ import ResidentDashboard from "../pages/resident/ResidentDashboard";
 import WardenDashboard from "../pages/warden/WardenDashboard";
 import SecurityDashboard from "../pages/security/SecurityDashboard";
 import AdminDashboard from "../pages/admin/AdminDashboard";
+import Residents from "../pages/warden/Residents";
 
 import SecurityAlerts from "../pages/security/SecurityAlerts";
 import SecurityIncidents from "../pages/security/SecurityIncidents";
@@ -201,6 +202,15 @@ export default function AppRoutes() {
         element={
           <ProtectedRoute allowedRoles={["warden"]}>
             <WardenAuditLogs />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/warden/residents"
+        element={
+          <ProtectedRoute allowedRoles={["warden"]}>
+            <Residents />
           </ProtectedRoute>
         }
       />
