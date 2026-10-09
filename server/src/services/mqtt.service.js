@@ -9,6 +9,8 @@ const { createAuditLog } = require("./audit.service");
 
 const { sanitizeNode, sanitizeIncident } = require("../utils/privacy");
 
+const { sendPushToRoles } = require("./push.service");
+
 const SUPPORTED_EVENT_TYPES = [
   "NODE_ONLINE",
   "HEARTBEAT",
@@ -397,6 +399,19 @@ const handleMQTTEvent = async (payload, io, topic = "") => {
 
         eventId,
       },
+    });
+
+    // Send a real browser/OS push notification to wardens.
+    sendPushToRoles(["warden"], {
+      title: "New SOS Alert — Call Node",
+      body: `Emergency call from ${node.name} • ${
+        node.location?.building || "Unknown Block"
+      } • Floor ${node.location?.floor ?? "-"}`,
+      url: "/warden/sos",
+      tag: `iot-sos-${incident.incidentId}`,
+      requireInteraction: true,
+    }).catch((error) => {
+      console.error("IoT SOS creation push failed:", error.message);
     });
 
     /**
