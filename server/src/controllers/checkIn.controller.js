@@ -1,7 +1,7 @@
 const CheckIn = require("../models/checkIn.model");
 const User = require("../models/user.model");
 const formatDateIST = require("../utils/formatDate");
-const { getCurrentNightPeriod } = require("../utils/checkinPeriod");
+const { getCurrentNightPeriod } = require("../utils/checkInPeriod");
 
 const formatCheckIn = (checkIn) => {
   const data = checkIn.toObject ? checkIn.toObject() : checkIn;
