@@ -8,6 +8,13 @@ const {
   getResidents,
   createResident,
 } = require("../controllers/user.controller");
+const authorize = require("../middlewares/role.middleware");
+
+const {
+  getMe,
+  getResidents,
+  createResident,
+} = require("../controllers/user.controller");
 
 const router = express.Router();
 
