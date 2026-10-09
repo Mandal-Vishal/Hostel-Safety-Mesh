@@ -6,7 +6,6 @@ const links = [
   { to: '/resident/sos', label: 'SOS', icon: '🔴' },
   { to: '/resident/incidents', label: 'Incidents', icon: '📋' },
   { to: '/resident/notifications', label: 'Notifications', icon: '🔔' },
-  { to: '/resident/privacy', label: 'Privacy', icon: '🔒' },
 ]
 
 export default function ResidentTopNav() {
