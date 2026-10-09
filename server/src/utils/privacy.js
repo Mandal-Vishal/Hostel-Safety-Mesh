@@ -108,6 +108,11 @@ const sanitizeUserForWarden = (user) => {
 
 const sanitizeUserByRole = (user, role) => {
   switch (role) {
+    case "admin":
+      return sanitizeUser(user, {
+        includeEmail: true,
+        includeLocation: true,
+      });
     case "warden":
       return sanitizeUserForWarden(user);
 

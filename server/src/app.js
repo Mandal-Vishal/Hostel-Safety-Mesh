@@ -9,6 +9,7 @@ const auditRoutes = require("./routes/audit.route");
 const nodeRoutes = require("./routes/node.route");
 const analyticsRoutes = require("./routes/analytics.route");
 const pushRoutes = require("./routes/push.route");
+const adminRoutes = require("./routes/admin.route");
 
 const app = express();
 
@@ -40,5 +41,6 @@ app.use("/api/notifications/push", pushRoutes);
 app.use("/api/audits", auditRoutes);
 app.use("/api/nodes", nodeRoutes);
 app.use("/api/analytics", analyticsRoutes);
+app.use("/api/admin", adminRoutes);
 
 module.exports = app;
