@@ -122,8 +122,8 @@ const createSOS = async (req, res) => {
     sendPushToRoles(["warden"], {
       title: "New SOS Alert",
       body: `Immediate assistance required • ${
-        location.building || "Unknown Block"
-      } • Floor ${location.floor ?? "-"}`,
+        location?.building || "Unknown Block"
+      } • Floor ${location?.floor ?? "-"}`,
       url: "/warden/active-sos",
       tag: `sos-${incident.incidentId}`,
       requireInteraction: true,
