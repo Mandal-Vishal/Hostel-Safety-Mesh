@@ -155,6 +155,10 @@ export async function syncIncidentNotifications(user) {
 
   const incidents = response.data?.incidents || [];
 
+  // Distinguish an actual first load from an empty snapshot saved
+  // by a previous poll. First load establishes a baseline, but new
+  // incidents discovered by later polls must create notifications.
+  const isInitialSnapshot = localStorage.getItem(getSnapshotKey(userKey)) === null;
   const previousSnapshot = readSnapshot(userKey);
 
   const currentSnapshot = {};
@@ -186,16 +190,16 @@ export async function syncIncidentNotifications(user) {
     };
 
     const previous = previousSnapshot[snapshotKey];
+    const isNewIncident = !previous;
 
-    // First sync only establishes the baseline.
-    // This prevents old test incidents from generating
-    // dozens of notifications on first load.
-    if (!previous) {
+    // Suppress only records seen during the very first baseline load.
+    // If a later poll discovers a new SOS, notify the logged-in user.
+    if (isNewIncident && isInitialSnapshot) {
       continue;
     }
 
-    const statusChanged = previous.status !== status;
-    const timeChanged = previous.updatedAt !== updatedAt;
+    const statusChanged = isNewIncident || previous.status !== status;
+    const timeChanged = !isNewIncident && previous.updatedAt !== updatedAt;
 
     if (!statusChanged && !timeChanged) {
       continue;
