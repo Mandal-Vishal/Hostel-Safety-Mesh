@@ -50,7 +50,7 @@ function getLocation(resident) {
     parts.push(location.zone);
   }
 
-  return parts.join(" • ") || "Location unavailable";
+  return parts.join(" • ");
 }
 
 export default function CheckIns() {

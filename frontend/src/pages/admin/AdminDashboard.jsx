@@ -6,13 +6,9 @@ import ErrorState from '../../components/ui/ErrorState'
 import { getAdminStats } from '../../services/adminService'
 
 const sidebarLinks = [
-  { to: '/admin/dashboard', label: 'Dashboard' },
-  { to: '/admin/users', label: 'Users' },
-  { to: '/admin/zones', label: 'Zones' },
-  { to: '/admin/devices', label: 'Devices' },
-  { to: '/admin/analytics', label: 'Analytics' },
-  { to: '/admin/audit-logs', label: 'Audit Logs' },
-]
+  { to: "/admin/dashboard", label: "Dashboard" },
+  { to: "/admin/users", label: "Users & Staff" },
+];
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState(null)
