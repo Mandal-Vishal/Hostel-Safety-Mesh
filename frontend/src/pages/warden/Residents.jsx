@@ -46,7 +46,8 @@ export default function Residents() {
       const data = await getResidents();
       setResidents(data);
     } catch (err) {
-      setError(err.response?.data?.message || "Failed to load residents.");
+      console.error("Load residents failed:", err);
+      setError(err.message || "Failed to load residents.");
     } finally {
       setLoading(false);
     }
@@ -102,7 +103,8 @@ export default function Residents() {
 
       await loadResidents();
     } catch (err) {
-      setError(err.response?.data?.message || "Failed to create resident.");
+      console.error("Create resident failed:", err);
+      setError(err.message || "Failed to create resident.");
     } finally {
       setSaving(false);
     }
@@ -112,7 +114,7 @@ export default function Residents() {
     "w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-600";
 
   return (
-    <DashboardLayout>
+    <DashboardLayout sidebarLinks={sidebarLinks}>
       <div className="w-full max-w-6xl mx-auto space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-neutral-900">
