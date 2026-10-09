@@ -1,18 +1,11 @@
 import api from "./api";
 
 export async function getResidents() {
-  const res = await api.get(
-    "/users/residents"
-  );
-
-  return res.data.residents || [];
+  const response = await api.get("/users/residents");
+  return response.data;
 }
 
-export async function createResident(data) {
-  const res = await api.post(
-    "/users/residents",
-    data
-  );
-
-  return res.data.resident;
+export async function createResident(residentData) {
+  const response = await api.post("/users/residents", residentData);
+  return response.data;
 }
